@@ -4,13 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Home } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const handleLogin = () => {
-    console.log('Login attempt', { email, password });
+  const handleLogin = async () => {
+    setIsLoading(true);
+    try {
+      await login(email, password);
+      setLocation("/");
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -48,8 +67,13 @@ export default function Login() {
               data-testid="input-password"
             />
           </div>
-          <Button className="w-full" onClick={handleLogin} data-testid="button-login">
-            Sign In
+          <Button 
+            className="w-full" 
+            onClick={handleLogin} 
+            disabled={isLoading}
+            data-testid="button-login"
+          >
+            {isLoading ? "Signing in..." : "Sign In"}
           </Button>
         </div>
         <p className="text-center text-sm text-muted-foreground mt-6">

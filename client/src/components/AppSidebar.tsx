@@ -14,6 +14,7 @@ import { Home, Users, Building2, MessageSquare, FileText, Calendar, BarChart3, S
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -27,6 +28,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <Sidebar>
@@ -82,13 +84,21 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="flex items-center gap-3 p-3 rounded-md bg-sidebar-accent hover-elevate cursor-pointer">
+        <div 
+          className="flex items-center gap-3 p-3 rounded-md bg-sidebar-accent hover-elevate cursor-pointer" 
+          onClick={logout}
+          data-testid="button-logout"
+        >
           <Avatar className="h-8 w-8">
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarFallback>
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">John Doe</p>
-            <p className="text-xs text-muted-foreground">Agent</p>
+            <p className="text-sm font-medium truncate">
+              {user?.firstName} {user?.lastName}
+            </p>
+            <p className="text-xs text-muted-foreground">{user?.role}</p>
           </div>
           <LogOut className="h-4 w-4 text-muted-foreground" />
         </div>
