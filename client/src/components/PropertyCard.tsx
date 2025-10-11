@@ -39,11 +39,11 @@ export function PropertyCard({
   onEdit,
   onDelete,
 }: PropertyCardProps) {
-  const statusColors = {
-    available: "success",
+  const statusVariants = {
+    available: "default",
     sold: "destructive",
-    pending: "warning",
-  };
+    pending: "secondary",
+  } as const;
 
   const displayImages = images.length > 0 ? images : ["/placeholder-property.jpg"];
 
@@ -66,7 +66,8 @@ export function PropertyCard({
           </Carousel>
         )}
         <Badge
-          className={`absolute top-3 right-3 bg-${statusColors[status]} z-10`}
+          variant={statusVariants[status]}
+          className="absolute top-3 right-3 z-10"
           data-testid={`badge-status-${id}`}
         >
           {status.charAt(0).toUpperCase() + status.slice(1)}
