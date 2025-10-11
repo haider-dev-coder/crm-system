@@ -15,6 +15,7 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401) {
       localStorage.removeItem("token");
+      queryClient.clear();
       window.location.href = "/login";
     }
     const text = (await res.text()) || res.statusText;

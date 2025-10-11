@@ -49,9 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         localStorage.removeItem("token");
         setToken(null);
+        setUser(null);
       }
     } catch (error) {
       console.error("Failed to fetch user:", error);
+      localStorage.removeItem("token");
+      setToken(null);
+      setUser(null);
     } finally {
       setLoading(false);
     }
