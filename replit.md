@@ -237,15 +237,23 @@ npm run db:generate
     - Toast notifications for user feedback
     - Tested end-to-end successfully
   
-  - **Properties CRUD (Complete with Image Upload)**:
+  - **Properties CRUD (Complete with Image Upload & Carousel)**:
     - **Add Property**: Dialog with complete form (title, price, address, city, state, zip, beds, baths, sqft, property type, status, description)
       - Multiple image upload with preview
       - Images saved to Replit Object Storage public directory
       - Backend endpoint: POST /api/properties/upload-images (multipart/form-data)
       - Uses fetch directly to preserve FormData boundary (bypasses apiRequest JSON headers)
+      - Multer diskStorage ensures uploads directory exists and generates unique filenames
+    - **Property Cards**: Enhanced with image carousel
+      - Shows single image for properties with one photo
+      - Displays embla-carousel for properties with multiple photos
+      - Carousel has prev/next navigation buttons
+      - Shows "X photos" badge for multi-image properties
+      - Uses token-safe Badge variants (default, destructive, secondary) for status
     - **View Property**: Read-only dialog displaying all property details
       - Image gallery showing all uploaded property images
-      - 2-column grid layout for images
+      - 2-column grid layout for clean organized view
+      - Images displayed with aspect-video ratio
     - **Edit Property**: Pre-filled form dialog for updating properties
       - Shows existing images with ability to remove individual images
       - Allows adding new images alongside existing ones
