@@ -49,8 +49,9 @@ A comprehensive full-stack Real Estate CRM system built with Node.js, Express, P
 - `DELETE /api/leads/:id` - Delete lead
 - `GET /api/properties` - Get all properties
 - `POST /api/properties` - Create property
-- `PUT /api/properties/:id` - Update property
-- `DELETE /api/properties/:id` - Delete property
+- `PATCH /api/properties/:id` - Update property
+- `DELETE /api/properties/:id` - Delete property with cascade deletion
+- `POST /api/properties/upload-images` - Upload property images (multipart/form-data)
 - `GET /api/deals` - Get all deals
 - `POST /api/deals` - Create deal
 - `GET /api/tasks` - Get all tasks
@@ -191,14 +192,15 @@ npm run db:generate
   - Form validation and error handling
   - Success/error toast notifications
   - Automatic cache invalidation and refresh
-- Properties (complete CRUD operations)
+- Properties (complete CRUD operations with image upload)
   - Add Property dialog with full form (title, price, address, city, state, zip, beds, baths, sqft, type, status, description)
-  - View Property dialog showing all details
-  - Edit Property dialog with pre-filled data
-  - Delete Property with confirmation dialog
+  - Multiple image upload using Replit Object Storage
+  - View Property dialog showing all details and image gallery
+  - Edit Property dialog with pre-filled data, existing image management, and ability to add more images
+  - Delete Property with cascade deletion (removes related deals, tasks, documents)
   - Real-time search filtering by title, address, city
   - Grid and map view toggle
-  - All operations connected to backend API
+  - All operations connected to backend API and fully tested
 
 ### 🚧 In Progress
 - Lead update and delete operations
@@ -209,9 +211,8 @@ npm run db:generate
 ## Known Limitations
 
 1. **Security**: JWT tokens stored in localStorage (XSS vulnerability) - should migrate to httpOnly cookies
-2. **File Upload**: Currently configured but needs frontend form integration
-3. **Real-time Features**: Messaging is simulated, not real-time WebSocket
-4. **Role Permissions**: Backend has role checks, frontend UI doesn't fully restrict based on roles
+2. **Real-time Features**: Messaging is simulated, not real-time WebSocket
+3. **Role Permissions**: Backend has role checks, frontend UI doesn't fully restrict based on roles
 
 ## User Preferences
 - Professional color scheme: Primary blue (#3b82f6)
@@ -236,16 +237,28 @@ npm run db:generate
     - Toast notifications for user feedback
     - Tested end-to-end successfully
   
-  - **Properties CRUD (Complete)**:
+  - **Properties CRUD (Complete with Image Upload)**:
     - **Add Property**: Dialog with complete form (title, price, address, city, state, zip, beds, baths, sqft, property type, status, description)
+      - Multiple image upload with preview
+      - Images saved to Replit Object Storage public directory
+      - Backend endpoint: POST /api/properties/upload-images (multipart/form-data)
+      - Uses fetch directly to preserve FormData boundary (bypasses apiRequest JSON headers)
     - **View Property**: Read-only dialog displaying all property details
+      - Image gallery showing all uploaded property images
+      - 2-column grid layout for images
     - **Edit Property**: Pre-filled form dialog for updating properties
+      - Shows existing images with ability to remove individual images
+      - Allows adding new images alongside existing ones
+      - Always sends complete images array (including empty []) to allow deletion
+      - Combines existing + new images on update
     - **Delete Property**: Confirmation dialog before deletion, red Delete button below each property card
+      - Cascade deletion removes all related deals, tasks, and documents before deleting property
+      - Prevents foreign key constraint errors
     - Real-time search filtering by title, address, city
     - All operations connected to backend APIs (POST, PATCH, DELETE)
     - Success/error toast notifications for all actions
     - Automatic cache invalidation and UI updates
-    - Tested all CRUD operations successfully
+    - Tested all CRUD operations successfully with E2E tests
 
 ## Next Steps
 1. Complete API integration for remaining pages (Properties, Tasks, Messages, Documents)
