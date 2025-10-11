@@ -1,11 +1,18 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bed, Bath, Maximize, MapPin, Eye, Edit, Trash2 } from "lucide-react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import { Bed, Bath, Maximize, MapPin, Eye, Edit, Trash2, Image as ImageIcon } from "lucide-react";
 
 interface PropertyCardProps {
   id: string;
-  image: string;
+  images?: string[];
   title: string;
   price: string;
   address: string;
@@ -20,7 +27,7 @@ interface PropertyCardProps {
 
 export function PropertyCard({
   id,
-  image,
+  images = [],
   title,
   price,
   address,
@@ -38,16 +45,38 @@ export function PropertyCard({
     pending: "warning",
   };
 
+  const displayImages = images.length > 0 ? images : ["/placeholder-property.jpg"];
+
   return (
     <Card className="overflow-hidden hover-elevate" data-testid={`card-property-${id}`}>
       <div className="relative h-48 bg-muted">
-        <img src={image} alt={title} className="w-full h-full object-cover" />
+        {displayImages.length === 1 ? (
+          <img src={displayImages[0]} alt={title} className="w-full h-full object-cover" />
+        ) : (
+          <Carousel className="w-full h-full">
+            <CarouselContent>
+              {displayImages.map((img, index) => (
+                <CarouselItem key={index}>
+                  <img src={img} alt={`${title} ${index + 1}`} className="w-full h-full object-cover" />
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="left-2" />
+            <CarouselNext className="right-2" />
+          </Carousel>
+        )}
         <Badge
-          className={`absolute top-3 right-3 bg-${statusColors[status]}`}
+          className={`absolute top-3 right-3 bg-${statusColors[status]} z-10`}
           data-testid={`badge-status-${id}`}
         >
           {status.charAt(0).toUpperCase() + status.slice(1)}
         </Badge>
+        {displayImages.length > 1 && (
+          <div className="absolute bottom-3 left-3 bg-black/60 text-white px-2 py-1 rounded-md text-xs flex items-center gap-1 z-10">
+            <ImageIcon className="h-3 w-3" />
+            {displayImages.length} photos
+          </div>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">

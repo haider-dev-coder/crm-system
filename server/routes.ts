@@ -22,7 +22,25 @@ import {
 } from "@shared/schema";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "your-secret-key";
-const upload = multer({ dest: "uploads/" });
+
+// Configure multer storage
+const uploadStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+    } catch (err) {
+      // Directory might already exist
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: uploadStorage });
 
 // Middleware to verify JWT token
 function authenticateToken(req: any, res: any, next: any) {
