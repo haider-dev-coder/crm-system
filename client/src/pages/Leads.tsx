@@ -2,8 +2,23 @@ import { KanbanBoard } from "@/components/KanbanBoard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import type { Lead } from "@shared/schema";
+import { useState } from "react";
 
 export default function Leads() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const { data: leads = [], isLoading } = useQuery<Lead[]>({ 
+    queryKey: ["/api/leads"] 
+  });
+
+  const filteredLeads = leads.filter(lead => {
+    const query = searchQuery.toLowerCase();
+    const name = lead.name?.toLowerCase() ?? "";
+    const email = lead.email?.toLowerCase() ?? "";
+    return name.includes(query) || email.includes(query);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -23,12 +38,18 @@ export default function Leads() {
           <Input
             placeholder="Search leads..."
             className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="input-search-leads"
           />
         </div>
       </div>
 
-      <KanbanBoard />
+      {isLoading ? (
+        <div className="text-center py-12">Loading leads...</div>
+      ) : (
+        <KanbanBoard leads={filteredLeads} />
+      )}
     </div>
   );
 }
