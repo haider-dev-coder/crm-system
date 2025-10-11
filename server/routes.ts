@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { deals as dealsTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -223,11 +226,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/properties/:id", authenticateToken, async (req, res) => {
+  app.delete("/api/properties/:id", authenticateToken, async (req: any, res) => {
     try {
-      await storage.deleteProperty(req.params.id);
+      const propertyId = req.params.id;
+      
+      // First, delete all related deals that reference this property
+      const deals = await storage.getAllDeals();
+      const relatedDeals = deals.filter(deal => deal.propertyId === propertyId);
+      for (const deal of relatedDeals) {
+        await db.delete(dealsTable).where(eq(dealsTable.id, deal.id));
+      }
+      
+      // Delete all related tasks
+      const tasks = await storage.getAllTasks();
+      const relatedTasks = tasks.filter(task => task.relatedPropertyId === propertyId);
+      for (const task of relatedTasks) {
+        await storage.deleteTask(task.id);
+      }
+      
+      // Delete all related documents
+      const documents = await storage.getDocumentsByProperty(propertyId);
+      for (const doc of documents) {
+        await storage.deleteDocument(doc.id);
+      }
+      
+      // Finally, delete the property itself
+      await storage.deleteProperty(propertyId);
+      
+      await storage.createActivity({
+        type: "property",
+        userId: req.user.id,
+        action: "deleted property",
+        target: propertyId,
+        metadata: { propertyId },
+      });
+      
       res.json({ success: true });
     } catch (error) {
+      console.error("Delete property error:", error);
       res.status(400).json({ error: "Failed to delete property" });
     }
   });
