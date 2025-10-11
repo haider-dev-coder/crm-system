@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bed, Bath, Maximize, MapPin, Eye, Edit } from "lucide-react";
+import { Bed, Bath, Maximize, MapPin, Eye, Edit, Trash2 } from "lucide-react";
 
 interface PropertyCardProps {
   id: string;
@@ -15,6 +15,7 @@ interface PropertyCardProps {
   status: "available" | "sold" | "pending";
   onView?: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export function PropertyCard({
@@ -29,6 +30,7 @@ export function PropertyCard({
   status,
   onView,
   onEdit,
+  onDelete,
 }: PropertyCardProps) {
   const statusColors = {
     available: "success",
@@ -72,26 +74,38 @@ export function PropertyCard({
             <span>{sqft.toLocaleString()} sqft</span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={onView}
+              data-testid={`button-view-${id}`}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={onEdit}
+              data-testid={`button-edit-${id}`}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </div>
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
-            className="flex-1"
-            onClick={onView}
-            data-testid={`button-view-${id}`}
+            className="w-full"
+            onClick={onDelete}
+            data-testid={`button-delete-${id}`}
           >
-            <Eye className="h-4 w-4 mr-2" />
-            View
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={onEdit}
-            data-testid={`button-edit-${id}`}
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Property
           </Button>
         </div>
       </div>
