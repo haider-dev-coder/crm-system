@@ -446,6 +446,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Property image upload route
+  app.post("/api/properties/upload-images", authenticateToken, upload.array("images", 10), async (req: any, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: "No images uploaded" });
+      }
+
+      const imageUrls: string[] = [];
+      const publicDir = process.env.PUBLIC_OBJECT_SEARCH_PATHS?.split(',')[0] || '/tmp/public';
+      
+      // Ensure public directory exists
+      try {
+        await fs.mkdir(publicDir, { recursive: true });
+      } catch (err) {
+        // Directory might already exist
+      }
+
+      for (const file of req.files) {
+        // Generate unique filename with original extension
+        const ext = path.extname(file.originalname);
+        const filename = `property-${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+        const destPath = path.join(publicDir, filename);
+        
+        // Move file from temp upload to public storage
+        await fs.rename(file.path, destPath);
+        
+        // Create public URL using Replit domain
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        const replId = process.env.REPL_ID || '';
+        const replOwner = process.env.REPL_OWNER || '';
+        const replSlug = process.env.REPL_SLUG || '';
+        
+        // Generate Replit object storage URL
+        const publicUrl = `https://${replId}.${replOwner}.repl.co/objstore/${bucketId}/public/${filename}`;
+        imageUrls.push(publicUrl);
+      }
+
+      res.json({ imageUrls });
+    } catch (error) {
+      console.error("Image upload error:", error);
+      res.status(400).json({ error: "Failed to upload images" });
+    }
+  });
+
   // Activity routes
   app.get("/api/activities", authenticateToken, async (req, res) => {
     try {

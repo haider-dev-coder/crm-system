@@ -3,7 +3,7 @@ import { PropertyCard } from "@/components/PropertyCard";
 import { PropertyMap } from "@/components/PropertyMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Map, Grid } from "lucide-react";
+import { Plus, Search, Map, Grid, Upload, X } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Property, InsertProperty } from "@shared/schema";
 import {
@@ -44,6 +44,9 @@ export default function Properties() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [formData, setFormData] = useState<Partial<InsertProperty>>({
     title: "",
     description: "",
@@ -156,9 +159,61 @@ export default function Properties() {
       propertyType: "house",
       status: "available",
     });
+    setSelectedImages([]);
+    setImageUrls([]);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      setSelectedImages(filesArray);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadImages = async (): Promise<string[]> => {
+    if (selectedImages.length === 0) return [];
+
+    setIsUploadingImages(true);
+    try {
+      const formData = new FormData();
+      selectedImages.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      // Use fetch directly for file upload (don't use apiRequest which sets JSON headers)
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/properties/upload-images", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to upload images");
+      }
+
+      const data = await response.json();
+      return data.imageUrls || [];
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to upload images",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.price || !formData.address) {
       toast({
@@ -168,13 +223,40 @@ export default function Properties() {
       });
       return;
     }
-    createPropertyMutation.mutate(formData as InsertProperty);
+
+    // Upload images first if any selected
+    const uploadedImageUrls = await uploadImages();
+    
+    // Create property with image URLs
+    const propertyData = {
+      ...formData,
+      images: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
+    };
+    
+    createPropertyMutation.mutate(propertyData as InsertProperty);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProperty) return;
-    updatePropertyMutation.mutate({ id: selectedProperty.id, data: formData });
+
+    // Upload new images if any selected
+    const newImageUrls = await uploadImages();
+    
+    // Combine existing images with newly uploaded images
+    const allImageUrls = [...imageUrls, ...newImageUrls];
+    
+    // Update property with all images (including empty array to allow deletion of all images)
+    const propertyData = {
+      ...formData,
+      images: allImageUrls,
+    };
+    
+    updatePropertyMutation.mutate({ id: selectedProperty.id, data: propertyData });
+  };
+
+  const removeExistingImage = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleView = (property: Property) => {
@@ -198,6 +280,9 @@ export default function Properties() {
       propertyType: property.propertyType,
       status: property.status,
     });
+    // Load existing images
+    setImageUrls(property.images || []);
+    setSelectedImages([]);
     setIsEditDialogOpen(true);
   };
 
@@ -444,6 +529,54 @@ export default function Properties() {
                   rows={3}
                 />
               </div>
+              
+              {/* Image Upload Section */}
+              <div className="grid gap-2">
+                <Label htmlFor="images">Property Images</Label>
+                <div className="border-2 border-dashed rounded-md p-4">
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm text-center">
+                      <label htmlFor="images" className="cursor-pointer text-primary hover:underline">
+                        Click to upload images
+                      </label>
+                      <p className="text-muted-foreground">or drag and drop</p>
+                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB (max 10 images)</p>
+                    </div>
+                    <Input
+                      id="images"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      data-testid="input-property-images"
+                    />
+                  </div>
+                  
+                  {selectedImages.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-medium">{selectedImages.length} image(s) selected:</p>
+                      <div className="space-y-1">
+                        {selectedImages.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-muted p-2 rounded">
+                            <span className="text-sm truncate">{file.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeImage(index)}
+                              data-testid={`button-remove-image-${index}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -459,10 +592,10 @@ export default function Properties() {
               </Button>
               <Button
                 type="submit"
-                disabled={createPropertyMutation.isPending}
+                disabled={createPropertyMutation.isPending || isUploadingImages}
                 data-testid="button-submit-property"
               >
-                {createPropertyMutation.isPending ? "Creating..." : "Create Property"}
+                {isUploadingImages ? "Uploading images..." : createPropertyMutation.isPending ? "Creating..." : "Create Property"}
               </Button>
             </DialogFooter>
           </form>
@@ -471,13 +604,31 @@ export default function Properties() {
 
       {/* View Property Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedProperty?.title}</DialogTitle>
             <DialogDescription>Property Details</DialogDescription>
           </DialogHeader>
           {selectedProperty && (
             <div className="grid gap-4 py-4">
+              {/* Property Images */}
+              {selectedProperty.images && selectedProperty.images.length > 0 && (
+                <div className="grid gap-2">
+                  <Label className="text-muted-foreground">Property Images</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedProperty.images.map((imageUrl, index) => (
+                      <div key={index} className="relative aspect-video rounded-lg overflow-hidden border">
+                        <img
+                          src={imageUrl}
+                          alt={`Property image ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          data-testid={`img-property-${index}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Price</Label>
@@ -680,6 +831,77 @@ export default function Properties() {
                   rows={3}
                 />
               </div>
+
+              {/* Existing Images */}
+              {imageUrls.length > 0 && (
+                <div className="grid gap-2">
+                  <Label>Current Images</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {imageUrls.map((url, index) => (
+                      <div key={index} className="relative aspect-video rounded-lg overflow-hidden border">
+                        <img src={url} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6"
+                          onClick={() => removeExistingImage(index)}
+                          data-testid={`button-remove-existing-${index}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add New Images */}
+              <div className="grid gap-2">
+                <Label htmlFor="edit-images">Add More Images</Label>
+                <div className="border-2 border-dashed rounded-md p-4">
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm text-center">
+                      <label htmlFor="edit-images" className="cursor-pointer text-primary hover:underline">
+                        Click to upload additional images
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                    </div>
+                    <Input
+                      id="edit-images"
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      data-testid="input-edit-images"
+                    />
+                  </div>
+                  
+                  {selectedImages.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-medium">{selectedImages.length} new image(s) selected:</p>
+                      <div className="space-y-1">
+                        {selectedImages.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-muted p-2 rounded">
+                            <span className="text-sm truncate">{file.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeImage(index)}
+                              data-testid={`button-remove-new-image-${index}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -696,10 +918,10 @@ export default function Properties() {
               </Button>
               <Button
                 type="submit"
-                disabled={updatePropertyMutation.isPending}
+                disabled={updatePropertyMutation.isPending || isUploadingImages}
                 data-testid="button-submit-edit"
               >
-                {updatePropertyMutation.isPending ? "Updating..." : "Update Property"}
+                {isUploadingImages ? "Uploading images..." : updatePropertyMutation.isPending ? "Updating..." : "Update Property"}
               </Button>
             </DialogFooter>
           </form>
