@@ -365,7 +365,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(task);
     } catch (error) {
-      res.status(400).json({ error: "Failed to create task" });
+      console.error("Task creation error:", error);
+      res.status(400).json({ error: "Failed to create task", details: error instanceof Error ? error.message : String(error) });
     }
   });
 
