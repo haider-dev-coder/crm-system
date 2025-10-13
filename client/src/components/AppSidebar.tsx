@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Home, Users, Building2, MessageSquare, FileText, Calendar, BarChart3, Settings, LogOut } from "lucide-react";
+import { Home, Users, UserCheck, Building2, MessageSquare, FileText, Calendar, BarChart3, Settings, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Link, useLocation } from "wouter";
@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth";
 const menuItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Leads", url: "/leads", icon: Users },
+  { title: "Contacts", url: "/contacts", icon: UserCheck },
   { title: "Properties", url: "/properties", icon: Building2 },
   { title: "Messages", url: "/messages", icon: MessageSquare, badge: 3 },
   { title: "Tasks", url: "/tasks", icon: Calendar },

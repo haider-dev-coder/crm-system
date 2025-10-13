@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import Dashboard from "@/pages/Dashboard";
 import Leads from "@/pages/Leads";
+import Contacts from "@/pages/Contacts";
 import Properties from "@/pages/Properties";
 import Messages from "@/pages/Messages";
 import Tasks from "@/pages/Tasks";
@@ -23,6 +24,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/leads" component={Leads} />
+      <Route path="/contacts" component={Contacts} />
       <Route path="/properties" component={Properties} />
       <Route path="/messages" component={Messages} />
       <Route path="/tasks" component={Tasks} />
