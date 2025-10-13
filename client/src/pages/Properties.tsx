@@ -353,7 +353,7 @@ export default function Properties() {
               id={property.id}
               images={property.images || undefined}
               title={property.title}
-              price={`$${parseFloat(property.price).toLocaleString()}`}
+              price={`AED ${parseFloat(property.price).toLocaleString()}`}
               address={`${property.address}, ${property.city} ${property.state}`}
               beds={property.beds}
               baths={property.baths}
@@ -632,7 +632,7 @@ export default function Properties() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Price</Label>
-                  <p className="text-lg font-semibold">${parseFloat(selectedProperty.price).toLocaleString()}</p>
+                  <p className="text-lg font-semibold">AED {parseFloat(selectedProperty.price).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Status</Label>

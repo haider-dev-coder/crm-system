@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Phone, Mail } from "lucide-react";
 import type { Lead } from "@shared/schema";
 
@@ -35,7 +36,7 @@ export function KanbanBoard({ leads }: KanbanBoardProps) {
             </div>
           </div>
           {lead.budget && (
-            <span className="font-semibold text-sm text-primary">{lead.budget}</span>
+            <span className="font-semibold text-sm text-primary">AED {lead.budget}</span>
           )}
         </div>
         {lead.tags && lead.tags.length > 0 && (
@@ -55,10 +56,17 @@ export function KanbanBoard({ leads }: KanbanBoardProps) {
             </div>
           )}
           {lead.email && (
-            <div className="flex items-center gap-1">
-              <Mail className="h-3 w-3" />
-              <span className="truncate">{lead.email}</span>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 min-w-0">
+                  <Mail className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{lead.email}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{lead.email}</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </Card>
