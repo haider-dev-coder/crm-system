@@ -102,15 +102,34 @@ export default function Leads() {
         body: JSON.stringify(data),
       });
     },
+    onMutate: async ({ id, data }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/leads"] });
+      
+      // Snapshot previous value
+      const previousLeads = queryClient.getQueryData<Lead[]>(["/api/leads"]);
+      
+      // Optimistically update
+      queryClient.setQueryData<Lead[]>(["/api/leads"], (old = []) => {
+        return old.map(lead => 
+          lead.id === id ? { ...lead, ...data } : lead
+        );
+      });
+      
+      return { previousLeads };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      setEditingCell(null);
       toast({
         title: "Success",
         description: "Lead updated successfully",
       });
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // Rollback on error
+      if (context?.previousLeads) {
+        queryClient.setQueryData(["/api/leads"], context.previousLeads);
+      }
+      setEditingCell(null);
       toast({
         title: "Error",
         description: error.message || "Failed to update lead",
@@ -174,15 +193,16 @@ export default function Leads() {
     setEditValue(String(lead[field] || ""));
   };
 
-  const handleCellSave = (lead: Lead, field: keyof Lead) => {
-    if (editValue !== String(lead[field] || "")) {
-      updateLeadMutation.mutate({
+  const handleCellSave = async (lead: Lead, field: keyof Lead) => {
+    const currentValue = String(lead[field] || "");
+    if (editValue.trim() !== currentValue.trim()) {
+      await updateLeadMutation.mutateAsync({
         id: lead.id,
-        data: { [field]: editValue },
+        data: { [field]: editValue.trim() },
       });
-    } else {
-      setEditingCell(null);
     }
+    setEditingCell(null);
+    setEditValue("");
   };
 
   const handleCellCancel = () => {
