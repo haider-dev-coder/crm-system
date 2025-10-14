@@ -148,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: "lead",
         userId: req.user.id,
         action: "created lead",
-        target: lead.name,
+        target: lead.senderName,
         metadata: { leadId: lead.id },
       });
 
@@ -166,7 +166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: "lead",
         userId: req.user.id,
         action: "updated lead",
-        target: lead.name,
+        target: lead.senderName,
         metadata: { leadId: lead.id },
       });
 
@@ -178,9 +178,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/leads/:id", authenticateToken, async (req, res) => {
     try {
-      await storage.deleteLead(req.params.id);
+      const leadId = req.params.id;
+      
+      // First, delete all related deals that reference this lead
+      const deals = await storage.getAllDeals();
+      const relatedDeals = deals.filter(deal => deal.leadId === leadId);
+      for (const deal of relatedDeals) {
+        await db.delete(dealsTable).where(eq(dealsTable.id, deal.id));
+      }
+      
+      // Delete all related tasks
+      const tasks = await storage.getAllTasks();
+      const relatedTasks = tasks.filter(task => task.relatedLeadId === leadId);
+      for (const task of relatedTasks) {
+        await storage.deleteTask(task.id);
+      }
+      
+      // Delete all related documents
+      const documents = await storage.getDocumentsByLead(leadId);
+      for (const doc of documents) {
+        await storage.deleteDocument(doc.id);
+      }
+      
+      // Finally, delete the lead itself
+      await storage.deleteLead(leadId);
+      
       res.json({ success: true });
     } catch (error) {
+      console.error("Lead deletion error:", error);
       res.status(400).json({ error: "Failed to delete lead" });
     }
   });

@@ -17,15 +17,20 @@ export const users = pgTable("users", {
 
 export const leads = pgTable("leads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  email: text("email").notNull(),
-  phone: text("phone").notNull(),
-  propertyInterest: text("property_interest"),
-  budget: text("budget"),
-  status: text("status").notNull().default("new"),
+  date: timestamp("date").defaultNow().notNull(),
+  leadType: text("lead_type"),
+  senderName: text("sender_name").notNull(),
+  senderNumber: text("sender_number").notNull(),
+  propertyType: text("property_type"),
+  purpose: text("purpose"),
+  price: text("price"),
+  location: text("location"),
+  subLocation: text("sub_location"),
+  agentName: text("agent_name"),
+  source: text("source"),
   assignedTo: varchar("assigned_to").references(() => users.id),
-  tags: text("tags").array(),
-  notes: text("notes"),
+  pinnedNotes: text("pinned_notes"),
+  status: text("status").notNull().default("new"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -127,6 +132,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 
 export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
+  date: true,
   createdAt: true,
   updatedAt: true,
 });
