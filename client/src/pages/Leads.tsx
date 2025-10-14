@@ -72,6 +72,10 @@ export default function Leads() {
     queryKey: ["/api/leads"] 
   });
 
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ["/api/users"]
+  });
+
   const createLeadMutation = useMutation({
     mutationFn: async (data: InsertLead) => {
       return await apiRequest("/api/leads", {
@@ -231,21 +235,30 @@ export default function Leads() {
   };
 
   const handleExport = () => {
-    const exportData = leads.map(lead => ({
-      Date: lead.date ? new Date(lead.date).toLocaleDateString() : "",
-      "Lead Type": lead.leadType || "",
-      "Sender Name": lead.senderName,
-      "Sender Number": lead.senderNumber,
-      "Property Type": lead.propertyType || "",
-      Purpose: lead.purpose || "",
-      "Price (AED)": lead.price || "",
-      Location: lead.location || "",
-      "Sub Location": lead.subLocation || "",
-      "Agent Name": lead.agentName || "",
-      "Bayut/Dubizzle": lead.source || "",
-      Status: lead.status,
-      "Pinned Notes": lead.pinnedNotes || "",
-    }));
+    const exportData = leads.map(lead => {
+      const assignedUser = users.find(u => u.id === lead.assignedTo);
+      const assignedToName = assignedUser ? `${assignedUser.firstName} ${assignedUser.lastName}` : "";
+      
+      // Format date as YYYY-MM-DD for reliable round-trip parsing
+      const dateStr = lead.date ? new Date(lead.date).toISOString().split('T')[0] : "";
+      
+      return {
+        Date: dateStr,
+        "Lead Type": lead.leadType || "",
+        "Sender Name": lead.senderName,
+        "Sender Number": lead.senderNumber,
+        "Property Type": lead.propertyType || "",
+        Purpose: lead.purpose || "",
+        "Price (AED)": lead.price || "",
+        Location: lead.location || "",
+        "Sub Location": lead.subLocation || "",
+        "Agent Name": lead.agentName || "",
+        "Bayut/Dubizzle": lead.source || "",
+        "Assigned To": assignedToName,
+        Status: lead.status,
+        "Pinned Notes": lead.pinnedNotes || "",
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
@@ -273,7 +286,34 @@ export default function Leads() {
 
         // Create leads from imported data
         jsonData.forEach((row) => {
+          // Parse date if provided (Excel serial or string)
+          let parsedDate = undefined;
+          if (row.Date) {
+            const dateValue = row.Date;
+            if (typeof dateValue === 'number') {
+              // Excel serial date
+              const excelEpoch = new Date(1899, 11, 30);
+              parsedDate = new Date(excelEpoch.getTime() + dateValue * 86400000).toISOString();
+            } else if (typeof dateValue === 'string') {
+              // String date
+              const parsed = new Date(dateValue);
+              if (!isNaN(parsed.getTime())) {
+                parsedDate = parsed.toISOString();
+              }
+            }
+          }
+
+          // Try to match "Assigned To" with users
+          const assignedToName = row["Assigned To"] || "";
+          const matchedUser = assignedToName
+            ? users.find(u => 
+                `${u.firstName} ${u.lastName}`.toLowerCase() === assignedToName.toLowerCase() ||
+                (u.email?.toLowerCase() ?? '') === assignedToName.toLowerCase()
+              )
+            : null;
+
           const leadData: Partial<InsertLead> = {
+            date: parsedDate,
             leadType: row["Lead Type"] || row.leadType || "",
             senderName: row["Sender Name"] || row.senderName || "",
             senderNumber: row["Sender Number"] || row.senderNumber || "",
@@ -284,6 +324,7 @@ export default function Leads() {
             subLocation: row["Sub Location"] || row.subLocation || "",
             agentName: row["Agent Name"] || row.agentName || "",
             source: row["Bayut/Dubizzle"] || row.source || "",
+            assignedTo: matchedUser?.id,
             pinnedNotes: row["Pinned Notes"] || row.pinnedNotes || "",
             status: (row.Status || row.status || "new").toLowerCase(),
           };
