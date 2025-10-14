@@ -53,14 +53,18 @@ export default function Leads() {
   const [editValue, setEditValue] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<InsertLead>>({
-    name: "",
-    email: "",
-    phone: "",
-    propertyInterest: "",
-    budget: "",
+    senderName: "",
+    senderNumber: "",
+    leadType: "",
+    propertyType: "",
+    purpose: "",
+    price: "",
+    location: "",
+    subLocation: "",
+    agentName: "",
+    source: "",
+    pinnedNotes: "",
     status: "new",
-    tags: [],
-    notes: "",
   });
   const { toast } = useToast();
 
@@ -164,10 +168,10 @@ export default function Leads() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.phone) {
+    if (!formData.senderName || !formData.senderNumber) {
       toast({
         title: "Validation Error",
-        description: "Name, email, and phone are required",
+        description: "Sender name and sender number are required",
         variant: "destructive",
       });
       return;
@@ -177,14 +181,18 @@ export default function Leads() {
 
   const resetForm = () => {
     setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      propertyInterest: "",
-      budget: "",
+      senderName: "",
+      senderNumber: "",
+      leadType: "",
+      propertyType: "",
+      purpose: "",
+      price: "",
+      location: "",
+      subLocation: "",
+      agentName: "",
+      source: "",
+      pinnedNotes: "",
       status: "new",
-      tags: [],
-      notes: "",
     });
   };
 
@@ -224,13 +232,19 @@ export default function Leads() {
 
   const handleExport = () => {
     const exportData = leads.map(lead => ({
-      Name: lead.name,
-      Email: lead.email,
-      Phone: lead.phone,
-      "Property Interest": lead.propertyInterest || "",
-      Budget: lead.budget || "",
+      Date: lead.date ? new Date(lead.date).toLocaleDateString() : "",
+      "Lead Type": lead.leadType || "",
+      "Sender Name": lead.senderName,
+      "Sender Number": lead.senderNumber,
+      "Property Type": lead.propertyType || "",
+      Purpose: lead.purpose || "",
+      "Price (AED)": lead.price || "",
+      Location: lead.location || "",
+      "Sub Location": lead.subLocation || "",
+      "Agent Name": lead.agentName || "",
+      "Bayut/Dubizzle": lead.source || "",
       Status: lead.status,
-      Notes: lead.notes || "",
+      "Pinned Notes": lead.pinnedNotes || "",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -260,17 +274,21 @@ export default function Leads() {
         // Create leads from imported data
         jsonData.forEach((row) => {
           const leadData: Partial<InsertLead> = {
-            name: row.Name || row.name || "",
-            email: row.Email || row.email || "",
-            phone: row.Phone || row.phone || "",
-            propertyInterest: row["Property Interest"] || row.propertyInterest || "",
-            budget: row.Budget || row.budget || "",
+            leadType: row["Lead Type"] || row.leadType || "",
+            senderName: row["Sender Name"] || row.senderName || "",
+            senderNumber: row["Sender Number"] || row.senderNumber || "",
+            propertyType: row["Property Type"] || row.propertyType || "",
+            purpose: row.Purpose || row.purpose || "",
+            price: row["Price (AED)"] || row.price || "",
+            location: row.Location || row.location || "",
+            subLocation: row["Sub Location"] || row.subLocation || "",
+            agentName: row["Agent Name"] || row.agentName || "",
+            source: row["Bayut/Dubizzle"] || row.source || "",
+            pinnedNotes: row["Pinned Notes"] || row.pinnedNotes || "",
             status: (row.Status || row.status || "new").toLowerCase(),
-            notes: row.Notes || row.notes || "",
-            tags: [],
           };
 
-          if (leadData.name && leadData.email && leadData.phone) {
+          if (leadData.senderName && leadData.senderNumber) {
             createLeadMutation.mutate(leadData as InsertLead);
           }
         });
@@ -297,10 +315,11 @@ export default function Leads() {
 
   const filteredLeads = leads.filter(lead => {
     const query = searchQuery.toLowerCase();
-    const name = lead.name?.toLowerCase() ?? "";
-    const email = lead.email?.toLowerCase() ?? "";
-    const phone = lead.phone?.toLowerCase() ?? "";
-    return name.includes(query) || email.includes(query) || phone.includes(query);
+    const senderName = lead.senderName?.toLowerCase() ?? "";
+    const senderNumber = lead.senderNumber?.toLowerCase() ?? "";
+    const location = lead.location?.toLowerCase() ?? "";
+    const agentName = lead.agentName?.toLowerCase() ?? "";
+    return senderName.includes(query) || senderNumber.includes(query) || location.includes(query) || agentName.includes(query);
   });
 
   return (
@@ -346,7 +365,7 @@ export default function Leads() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search leads by name, email, or phone..."
+            placeholder="Search leads by sender name, number, location, or agent..."
             className="pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -363,166 +382,300 @@ export default function Leads() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px]">Name</TableHead>
-                  <TableHead className="w-[200px]">Email</TableHead>
-                  <TableHead className="w-[130px]">Phone</TableHead>
-                  <TableHead className="w-[150px]">Property Type</TableHead>
-                  <TableHead className="w-[130px]">Budget (AED)</TableHead>
-                  <TableHead className="w-[130px]">Stage</TableHead>
-                  <TableHead className="w-[200px]">Notes</TableHead>
-                  <TableHead className="w-[100px] text-right">Actions</TableHead>
+                  <TableHead className="w-[120px]">Date</TableHead>
+                  <TableHead className="w-[120px]">Lead Type</TableHead>
+                  <TableHead className="w-[140px]">Sender Name</TableHead>
+                  <TableHead className="w-[130px]">Sender Number</TableHead>
+                  <TableHead className="w-[130px]">Property Type</TableHead>
+                  <TableHead className="w-[120px]">Purpose</TableHead>
+                  <TableHead className="w-[120px]">Price (AED)</TableHead>
+                  <TableHead className="w-[130px]">Location</TableHead>
+                  <TableHead className="w-[130px]">Sub Location</TableHead>
+                  <TableHead className="w-[130px]">Agent Name</TableHead>
+                  <TableHead className="w-[150px]">Source/Bayut/Dubizzle</TableHead>
+                  <TableHead className="w-[130px]">Status</TableHead>
+                  <TableHead className="w-[200px]">Pinned Notes</TableHead>
+                  <TableHead className="w-[80px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={14} className="text-center py-12 text-muted-foreground">
                       No leads found. Add your first lead or import from Excel.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredLeads.map((lead) => (
                     <TableRow key={lead.id} data-testid={`row-lead-${lead.id}`}>
-                      {/* Name */}
+                      {/* Date (read-only) */}
                       <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "name" ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => handleCellSave(lead, "name")}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleCellSave(lead, "name");
-                                if (e.key === "Escape") handleCellCancel();
-                              }}
-                              className="h-8"
-                              autoFocus
-                              data-testid={`input-edit-name-${lead.id}`}
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            onClick={() => handleCellEdit(lead, "name")}
-                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
-                            data-testid={`cell-name-${lead.id}`}
-                          >
-                            {lead.name}
-                          </div>
-                        )}
+                        <div className="p-1 min-h-[32px] flex items-center text-muted-foreground" data-testid={`cell-date-${lead.id}`}>
+                          {lead.date ? new Date(lead.date).toLocaleDateString() : "-"}
+                        </div>
                       </TableCell>
 
-                      {/* Email with tooltip */}
+                      {/* Lead Type */}
                       <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "email" ? (
+                        {editingCell?.id === lead.id && editingCell?.field === "leadType" ? (
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleCellSave(lead, "email")}
+                            onBlur={() => handleCellSave(lead, "leadType")}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") handleCellSave(lead, "email");
+                              if (e.key === "Enter") handleCellSave(lead, "leadType");
                               if (e.key === "Escape") handleCellCancel();
                             }}
                             className="h-8"
                             autoFocus
-                            data-testid={`input-edit-email-${lead.id}`}
-                          />
-                        ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                onClick={() => handleCellEdit(lead, "email")}
-                                className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center truncate"
-                                data-testid={`cell-email-${lead.id}`}
-                              >
-                                {lead.email}
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{lead.email}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-
-                      {/* Phone */}
-                      <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "phone" ? (
-                          <Input
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleCellSave(lead, "phone")}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleCellSave(lead, "phone");
-                              if (e.key === "Escape") handleCellCancel();
-                            }}
-                            className="h-8"
-                            autoFocus
-                            data-testid={`input-edit-phone-${lead.id}`}
+                            data-testid={`input-edit-leadType-${lead.id}`}
                           />
                         ) : (
                           <div
-                            onClick={() => handleCellEdit(lead, "phone")}
+                            onClick={() => handleCellEdit(lead, "leadType")}
                             className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
-                            data-testid={`cell-phone-${lead.id}`}
+                            data-testid={`cell-leadType-${lead.id}`}
                           >
-                            {lead.phone}
+                            {lead.leadType || "-"}
                           </div>
                         )}
                       </TableCell>
 
-                      {/* Property Interest */}
+                      {/* Sender Name */}
                       <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "propertyInterest" ? (
+                        {editingCell?.id === lead.id && editingCell?.field === "senderName" ? (
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleCellSave(lead, "propertyInterest")}
+                            onBlur={() => handleCellSave(lead, "senderName")}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") handleCellSave(lead, "propertyInterest");
+                              if (e.key === "Enter") handleCellSave(lead, "senderName");
                               if (e.key === "Escape") handleCellCancel();
                             }}
                             className="h-8"
                             autoFocus
-                            data-testid={`input-edit-property-${lead.id}`}
+                            data-testid={`input-edit-senderName-${lead.id}`}
                           />
                         ) : (
                           <div
-                            onClick={() => handleCellEdit(lead, "propertyInterest")}
+                            onClick={() => handleCellEdit(lead, "senderName")}
                             className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
-                            data-testid={`cell-property-${lead.id}`}
+                            data-testid={`cell-senderName-${lead.id}`}
                           >
-                            {lead.propertyInterest || "-"}
+                            {lead.senderName}
                           </div>
                         )}
                       </TableCell>
 
-                      {/* Budget */}
+                      {/* Sender Number */}
                       <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "budget" ? (
+                        {editingCell?.id === lead.id && editingCell?.field === "senderNumber" ? (
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleCellSave(lead, "budget")}
+                            onBlur={() => handleCellSave(lead, "senderNumber")}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") handleCellSave(lead, "budget");
+                              if (e.key === "Enter") handleCellSave(lead, "senderNumber");
                               if (e.key === "Escape") handleCellCancel();
                             }}
                             className="h-8"
                             autoFocus
-                            data-testid={`input-edit-budget-${lead.id}`}
+                            data-testid={`input-edit-senderNumber-${lead.id}`}
                           />
                         ) : (
                           <div
-                            onClick={() => handleCellEdit(lead, "budget")}
+                            onClick={() => handleCellEdit(lead, "senderNumber")}
                             className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
-                            data-testid={`cell-budget-${lead.id}`}
+                            data-testid={`cell-senderNumber-${lead.id}`}
                           >
-                            {lead.budget || "-"}
+                            {lead.senderNumber}
                           </div>
                         )}
                       </TableCell>
 
-                      {/* Status/Stage */}
+                      {/* Property Type */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "propertyType" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "propertyType")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "propertyType");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-propertyType-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "propertyType")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-propertyType-${lead.id}`}
+                          >
+                            {lead.propertyType || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Purpose */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "purpose" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "purpose")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "purpose");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-purpose-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "purpose")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-purpose-${lead.id}`}
+                          >
+                            {lead.purpose || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Price (AED) */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "price" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "price")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "price");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-price-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "price")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-price-${lead.id}`}
+                          >
+                            {lead.price || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Location */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "location" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "location")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "location");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-location-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "location")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-location-${lead.id}`}
+                          >
+                            {lead.location || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Sub Location */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "subLocation" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "subLocation")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "subLocation");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-subLocation-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "subLocation")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-subLocation-${lead.id}`}
+                          >
+                            {lead.subLocation || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Agent Name */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "agentName" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "agentName")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "agentName");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-agentName-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "agentName")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-agentName-${lead.id}`}
+                          >
+                            {lead.agentName || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Source/Bayut/Dubizzle */}
+                      <TableCell>
+                        {editingCell?.id === lead.id && editingCell?.field === "source" ? (
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onBlur={() => handleCellSave(lead, "source")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleCellSave(lead, "source");
+                              if (e.key === "Escape") handleCellCancel();
+                            }}
+                            className="h-8"
+                            autoFocus
+                            data-testid={`input-edit-source-${lead.id}`}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => handleCellEdit(lead, "source")}
+                            className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center"
+                            data-testid={`cell-source-${lead.id}`}
+                          >
+                            {lead.source || "-"}
+                          </div>
+                        )}
+                      </TableCell>
+
+                      {/* Status */}
                       <TableCell>
                         <Select
                           value={lead.status}
@@ -541,28 +694,28 @@ export default function Leads() {
                         </Select>
                       </TableCell>
 
-                      {/* Notes */}
+                      {/* Pinned Notes */}
                       <TableCell>
-                        {editingCell?.id === lead.id && editingCell?.field === "notes" ? (
+                        {editingCell?.id === lead.id && editingCell?.field === "pinnedNotes" ? (
                           <Input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleCellSave(lead, "notes")}
+                            onBlur={() => handleCellSave(lead, "pinnedNotes")}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") handleCellSave(lead, "notes");
+                              if (e.key === "Enter") handleCellSave(lead, "pinnedNotes");
                               if (e.key === "Escape") handleCellCancel();
                             }}
                             className="h-8"
                             autoFocus
-                            data-testid={`input-edit-notes-${lead.id}`}
+                            data-testid={`input-edit-pinnedNotes-${lead.id}`}
                           />
                         ) : (
                           <div
-                            onClick={() => handleCellEdit(lead, "notes")}
+                            onClick={() => handleCellEdit(lead, "pinnedNotes")}
                             className="cursor-pointer hover-elevate p-1 rounded min-h-[32px] flex items-center truncate"
-                            data-testid={`cell-notes-${lead.id}`}
+                            data-testid={`cell-pinnedNotes-${lead.id}`}
                           >
-                            {lead.notes || "-"}
+                            {lead.pinnedNotes || "-"}
                           </div>
                         )}
                       </TableCell>
@@ -598,59 +751,117 @@ export default function Leads() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  data-testid="input-lead-name"
-                  value={formData.name || ""}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="John Doe"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="senderName">Sender Name *</Label>
+                  <Input
+                    id="senderName"
+                    data-testid="input-lead-senderName"
+                    value={formData.senderName || ""}
+                    onChange={(e) => setFormData({ ...formData, senderName: e.target.value })}
+                    placeholder="John Doe"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="senderNumber">Sender Number *</Label>
+                  <Input
+                    id="senderNumber"
+                    data-testid="input-lead-senderNumber"
+                    value={formData.senderNumber || ""}
+                    onChange={(e) => setFormData({ ...formData, senderNumber: e.target.value })}
+                    placeholder="+971 50 123 4567"
+                    required
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  data-testid="input-lead-email"
-                  value={formData.email || ""}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="john@example.com"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="leadType">Lead Type</Label>
+                  <Input
+                    id="leadType"
+                    data-testid="input-lead-leadType"
+                    value={formData.leadType || ""}
+                    onChange={(e) => setFormData({ ...formData, leadType: e.target.value })}
+                    placeholder="e.g., Buyer, Seller, Tenant"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="propertyType">Property Type</Label>
+                  <Input
+                    id="propertyType"
+                    data-testid="input-lead-propertyType"
+                    value={formData.propertyType || ""}
+                    onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}
+                    placeholder="Villa, Apartment, etc."
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Phone *</Label>
-                <Input
-                  id="phone"
-                  data-testid="input-lead-phone"
-                  value={formData.phone || ""}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+971 50 123 4567"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="purpose">Purpose</Label>
+                  <Input
+                    id="purpose"
+                    data-testid="input-lead-purpose"
+                    value={formData.purpose || ""}
+                    onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                    placeholder="Buy, Rent, Sell"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="price">Price (AED)</Label>
+                  <Input
+                    id="price"
+                    data-testid="input-lead-price"
+                    value={formData.price || ""}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="500,000 - 750,000"
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="propertyInterest">Property Interest</Label>
-                <Input
-                  id="propertyInterest"
-                  data-testid="input-lead-property"
-                  value={formData.propertyInterest || ""}
-                  onChange={(e) => setFormData({ ...formData, propertyInterest: e.target.value })}
-                  placeholder="Luxury Villa, Downtown Condo, etc."
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    data-testid="input-lead-location"
+                    value={formData.location || ""}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="Dubai Marina"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="subLocation">Sub Location</Label>
+                  <Input
+                    id="subLocation"
+                    data-testid="input-lead-subLocation"
+                    value={formData.subLocation || ""}
+                    onChange={(e) => setFormData({ ...formData, subLocation: e.target.value })}
+                    placeholder="Tower A, Building 5"
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="budget">Budget (AED)</Label>
-                <Input
-                  id="budget"
-                  data-testid="input-lead-budget"
-                  value={formData.budget || ""}
-                  onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                  placeholder="500,000 - 750,000"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="agentName">Agent Name</Label>
+                  <Input
+                    id="agentName"
+                    data-testid="input-lead-agentName"
+                    value={formData.agentName || ""}
+                    onChange={(e) => setFormData({ ...formData, agentName: e.target.value })}
+                    placeholder="Agent's name"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="source">Source/Bayut/Dubizzle</Label>
+                  <Input
+                    id="source"
+                    data-testid="input-lead-source"
+                    value={formData.source || ""}
+                    onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                    placeholder="Bayut, Dubizzle, Website"
+                  />
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="status">Status</Label>
@@ -671,29 +882,13 @@ export default function Leads() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="tags">Tags</Label>
-                <Input
-                  id="tags"
-                  data-testid="input-lead-tags"
-                  value={formData.tags?.join(", ") || ""}
-                  onChange={(e) => {
-                    const tagsArray = e.target.value
-                      .split(",")
-                      .map(tag => tag.trim())
-                      .filter(tag => tag.length > 0);
-                    setFormData({ ...formData, tags: tagsArray });
-                  }}
-                  placeholder="Hot Lead, Urgent, VIP (comma-separated)"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="pinnedNotes">Pinned Notes</Label>
                 <Textarea
-                  id="notes"
-                  data-testid="input-lead-notes"
-                  value={formData.notes || ""}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Additional information about the lead..."
+                  id="pinnedNotes"
+                  data-testid="input-lead-pinnedNotes"
+                  value={formData.pinnedNotes || ""}
+                  onChange={(e) => setFormData({ ...formData, pinnedNotes: e.target.value })}
+                  placeholder="Important notes about this lead..."
                   rows={3}
                 />
               </div>
@@ -728,7 +923,7 @@ export default function Leads() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Lead</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {selectedLead?.name}? This action cannot be undone.
+              Are you sure you want to delete {selectedLead?.senderName}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
