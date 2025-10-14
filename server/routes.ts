@@ -153,8 +153,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json(lead);
-    } catch (error) {
-      res.status(400).json({ error: "Failed to create lead" });
+    } catch (error: any) {
+      console.error("Lead creation error:", error);
+      const errorMessage = error?.issues?.[0]?.message || error?.message || "Failed to create lead";
+      res.status(400).json({ error: errorMessage });
     }
   });
 
