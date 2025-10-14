@@ -23,7 +23,7 @@ A comprehensive full-stack Real Estate CRM system designed to streamline real es
 
 ### Key Features
 - **Authentication & Security**: JWT token-based, Role-based Access Control (ADMIN, AGENT, OWNER), password hashing.
-- **Lead Management**: Kanban board (New, Contacted, Qualified, Negotiation, Closed), search, filtering, tagging, assignment, activity tracking, Excel import/export.
+- **Lead Management**: 14-column table with inline editing, status pipeline (New, Contacted, Qualified, Negotiation, Closed), Excel import/export with exact column matching (Date, Lead Type, Sender Name, Sender Number, Property Type, Purpose, Price AED, Location, Sub Location, Agent Name, Bayut/Dubizzle, Assigned To, Status, Pinned Notes), cascade deletion, search by sender/location/agent, optimistic updates.
 - **Property Management**: Listings with images, interactive map view, status tracking, detailed property attributes, image uploads via object storage.
 - **Deal Workflow**: Offer management, automatic commission calculation, deal status tracking, linking to leads and properties.
 - **Task & Calendar**: Task creation, assignment, due date tracking, priority levels, file attachments, calendar view.
@@ -32,8 +32,8 @@ A comprehensive full-stack Real Estate CRM system designed to streamline real es
 - **UI/UX**: Responsive design for all pages, Excel-like tables with inline editing and optimistic updates, property cards with image carousels, AED currency formatting.
 
 ### Database Schema
-- `users`: User accounts with role-based access.
-- `leads`: Sales leads with pipeline status.
+- `users`: User accounts with role-based access (firstName, lastName, email, role, phone, avatar).
+- `leads`: Sales leads restructured to match Excel import format with fields: id (serial PK), date (auto-generated timestamp), leadType, senderName (required), senderNumber (required), propertyType, purpose, price, location, subLocation, agentName, source (Bayut/Dubizzle), assignedTo (FK to users), pinnedNotes, status (new/contacted/qualified/negotiation/closed). Cascade deletion removes related deals, tasks, and documents.
 - `properties`: Property listings with location data.
 - `deals`: Offers and transactions with commission tracking.
 - `tasks`: Task management with assignments and due dates.
