@@ -37,20 +37,50 @@ export default function Contacts() {
   const CONTACTS_PER_PAGE = 10;
   const { toast } = useToast();
 
-  const { data: allLeads = [], isLoading } = useQuery<Lead[]>({ 
-    queryKey: ["/api/leads"] 
+  // Log component mount
+  useEffect(() => {
+    console.log('[Contacts] Component mounted');
+    return () => console.log('[Contacts] Component unmounted');
+  }, []);
+
+  const { data: allLeads = [], isLoading, error, isError } = useQuery<Lead[]>({ 
+    queryKey: ["/api/leads"],
+    retry: 1,
   });
+
+  // Log query state for debugging
+  useEffect(() => {
+    console.log('[Contacts] Query State:', {
+      isLoading,
+      isError,
+      error: error?.message || error,
+      totalLeads: allLeads.length,
+      allLeadsData: allLeads,
+    });
+  }, [isLoading, isError, error, allLeads]);
 
   // Filter to show only closed leads (contacts)
   const contacts = allLeads.filter(lead => lead.status === "closed");
 
+  // Log filtered contacts for debugging
+  useEffect(() => {
+    console.log('[Contacts] Filtered Contacts:', {
+      totalContacts: contacts.length,
+      totalLeads: allLeads.length,
+      contacts: contacts,
+      leadStatuses: allLeads.map(l => ({ id: l.id, status: l.status })),
+    });
+  }, [contacts.length, allLeads.length]);
+
   const deleteContactMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log('[Contacts] Deleting contact:', id);
       return await apiRequest(`/api/leads/${id}`, {
         method: "DELETE",
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[Contacts] Delete success:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setIsDeleteDialogOpen(false);
       setSelectedContact(null);
@@ -60,6 +90,7 @@ export default function Contacts() {
       });
     },
     onError: (error: any) => {
+      console.error('[Contacts] Delete error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete contact",
@@ -70,6 +101,7 @@ export default function Contacts() {
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (contactIds: string[]) => {
+      console.log('[Contacts] Bulk deleting contacts:', contactIds);
       return await apiRequest("/api/leads/bulk-delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,6 +109,7 @@ export default function Contacts() {
       });
     },
     onSuccess: (data: any) => {
+      console.log('[Contacts] Bulk delete success:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setIsBulkDeleteDialogOpen(false);
       setSelectedContactIds(new Set());
@@ -86,6 +119,7 @@ export default function Contacts() {
       });
     },
     onError: (error: any) => {
+      console.error('[Contacts] Bulk delete error:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete contacts",
@@ -192,8 +226,24 @@ export default function Contacts() {
         )}
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-12">Loading contacts...</div>
+      {isError ? (
+        <div className="text-center py-12">
+          <div className="text-destructive font-semibold mb-2">Error Loading Contacts</div>
+          <div className="text-muted-foreground text-sm">
+            {error instanceof Error ? error.message : 'Failed to fetch contacts'}
+          </div>
+          <Button 
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/leads"] })}
+            className="mt-4"
+          >
+            Retry
+          </Button>
+        </div>
+      ) : isLoading ? (
+        <div className="text-center py-12">
+          <div className="text-muted-foreground">Loading contacts...</div>
+          <div className="text-xs text-muted-foreground mt-2">Fetching leads from server...</div>
+        </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
@@ -218,16 +268,21 @@ export default function Contacts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contacts.length === 0 ? (
+                {filteredContacts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      No contacts yet. Contacts will appear here when leads are marked as "Closed".
-                    </TableCell>
-                  </TableRow>
-                ) : filteredContacts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      No contacts found matching your search.
+                      {contacts.length === 0 ? (
+                        <div>
+                          <div>No contacts yet. Contacts will appear here when leads are marked as "Closed".</div>
+                          <div className="text-xs mt-2 opacity-60">
+                            Total leads in system: {allLeads.length} | 
+                            Closed leads: {contacts.length} |
+                            Check browser console for details
+                          </div>
+                        </div>
+                      ) : (
+                        "No contacts found matching your search."
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
