@@ -56,7 +56,7 @@ export default function Leads() {
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const LEADS_PER_PAGE = 15;
+  const LEADS_PER_PAGE = 10;
   const [formData, setFormData] = useState<Partial<InsertLead>>({
     senderName: "",
     senderNumber: "",
@@ -900,18 +900,35 @@ export default function Leads() {
                   Previous
                 </Button>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(page)}
-                      data-testid={`button-page-${page}`}
-                      className="min-w-[36px]"
-                    >
-                      {page}
-                    </Button>
-                  ))}
+                  {(() => {
+                    // Calculate pagination window (show 5 page numbers at a time)
+                    const WINDOW_SIZE = 5;
+                    let startPage = Math.max(1, currentPage - Math.floor(WINDOW_SIZE / 2));
+                    let endPage = Math.min(totalPages, startPage + WINDOW_SIZE - 1);
+                    
+                    // Adjust if we're near the end
+                    if (endPage - startPage + 1 < WINDOW_SIZE) {
+                      startPage = Math.max(1, endPage - WINDOW_SIZE + 1);
+                    }
+                    
+                    const pageNumbers = [];
+                    for (let i = startPage; i <= endPage; i++) {
+                      pageNumbers.push(i);
+                    }
+                    
+                    return pageNumbers.map((page) => (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(page)}
+                        data-testid={`button-page-${page}`}
+                        className="min-w-[36px]"
+                      >
+                        {page}
+                      </Button>
+                    ));
+                  })()}
                 </div>
                 <Button
                   variant="outline"
