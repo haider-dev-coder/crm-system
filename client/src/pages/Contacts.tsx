@@ -1,446 +1,498 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Phone, MapPin, DollarSign } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Lead } from "@shared/schema";
+import type { Lead, InsertLead } from "@shared/schema";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverEvent,
+  useDroppable,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+type PipelineStage = "new" | "contacted" | "qualified" | "negotiation" | "closed";
+
+const STAGE_LABELS: Record<PipelineStage, string> = {
+  new: "New",
+  contacted: "Contacted",
+  qualified: "Qualified",
+  negotiation: "Negotiation",
+  closed: "Closed",
+};
+
+const STAGE_COLORS: Record<PipelineStage, string> = {
+  new: "bg-blue-50 dark:bg-blue-950",
+  contacted: "bg-yellow-50 dark:bg-yellow-950",
+  qualified: "bg-green-50 dark:bg-green-950",
+  negotiation: "bg-orange-50 dark:bg-orange-950",
+  closed: "bg-purple-50 dark:bg-purple-950",
+};
+
+function ContactCard({ contact }: { contact: Lead }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: contact.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      data-testid={`card-contact-${contact.id}`}
+    >
+      <Card className="p-4 mb-3 hover-elevate cursor-grab active:cursor-grabbing">
+        <div className="space-y-3">
+          <div>
+            <h3 className="font-semibold text-base mb-1">{contact.senderName}</h3>
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Phone className="h-3 w-3" />
+              <span>{contact.senderNumber}</span>
+            </div>
+          </div>
+          
+          {contact.location && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate">{contact.location}</span>
+            </div>
+          )}
+          
+          {contact.propertyType && (
+            <div>
+              <Badge variant="secondary" className="text-xs">
+                {contact.propertyType}
+              </Badge>
+            </div>
+          )}
+          
+          {contact.price && (
+            <div className="flex items-center gap-1 text-sm font-semibold text-primary">
+              <DollarSign className="h-3 w-3" />
+              <span>AED {contact.price}</span>
+            </div>
+          )}
+          
+          {contact.pinnedNotes && (
+            <p className="text-xs text-muted-foreground truncate">{contact.pinnedNotes}</p>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DroppableColumn({ stage, contacts }: { stage: PipelineStage; contacts: Lead[] }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: stage,
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className={`p-3 rounded-t-lg ${STAGE_COLORS[stage]}`}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">{STAGE_LABELS[stage]}</h3>
+          <Badge variant="secondary">{contacts.length}</Badge>
+        </div>
+      </div>
+      
+      <div 
+        ref={setNodeRef}
+        className={`flex-1 border-x border-b rounded-b-lg transition-colors ${
+          isOver ? "bg-accent/50" : ""
+        }`}
+      >
+        <ScrollArea className="h-full">
+          <div className="p-3 min-h-[400px]">
+            <SortableContext
+              items={contacts.map(c => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {contacts.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  No contacts yet
+                </div>
+              ) : (
+                contacts.map((contact) => (
+                  <ContactCard key={contact.id} contact={contact} />
+                ))
+              )}
+            </SortableContext>
+          </div>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+}
 
 export default function Contacts() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
-  const [selectedContact, setSelectedContact] = useState<Lead | null>(null);
-  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const CONTACTS_PER_PAGE = 10;
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<InsertLead>>({
+    senderName: "",
+    senderNumber: "",
+    leadType: "",
+    propertyType: "",
+    purpose: "",
+    price: "",
+    location: "",
+    subLocation: "",
+    agentName: "",
+    source: "",
+    pinnedNotes: "",
+    status: "new",
+  });
   const { toast } = useToast();
 
-  // Log component mount
-  useEffect(() => {
-    console.log('[Contacts] Component mounted');
-    return () => console.log('[Contacts] Component unmounted');
-  }, []);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  );
 
-  const { data: allLeads = [], isLoading, error, isError } = useQuery<Lead[]>({ 
-    queryKey: ["/api/leads"],
-    retry: 1,
+  const { data: allLeads = [], isLoading } = useQuery<Lead[]>({ 
+    queryKey: ["/api/leads"] 
   });
 
-  // Log query state for debugging
-  useEffect(() => {
-    console.log('[Contacts] Query State:', {
-      isLoading,
-      isError,
-      error: error?.message || error,
-      totalLeads: allLeads.length,
-      allLeadsData: allLeads,
-    });
-  }, [isLoading, isError, error, allLeads]);
-
-  // Filter to show only closed leads (contacts)
-  const contacts = allLeads.filter(lead => lead.status === "closed");
-
-  // Log filtered contacts for debugging
-  useEffect(() => {
-    console.log('[Contacts] Filtered Contacts:', {
-      totalContacts: contacts.length,
-      totalLeads: allLeads.length,
-      contacts: contacts,
-      leadStatuses: allLeads.map(l => ({ id: l.id, status: l.status })),
-    });
-  }, [contacts.length, allLeads.length]);
-
-  const deleteContactMutation = useMutation({
-    mutationFn: async (id: string) => {
-      console.log('[Contacts] Deleting contact:', id);
+  const updateLeadMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       return await apiRequest(`/api/leads/${id}`, {
-        method: "DELETE",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
       });
     },
-    onSuccess: (data) => {
-      console.log('[Contacts] Delete success:', data);
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      setIsDeleteDialogOpen(false);
-      setSelectedContact(null);
       toast({
         title: "Success",
-        description: "Contact deleted successfully",
+        description: `Moved to ${STAGE_LABELS[variables.status as PipelineStage]}`,
       });
     },
     onError: (error: any) => {
-      console.error('[Contacts] Delete error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete contact",
+        description: error.message || "Failed to update contact",
         variant: "destructive",
       });
     },
   });
 
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (contactIds: string[]) => {
-      console.log('[Contacts] Bulk deleting contacts:', contactIds);
-      return await apiRequest("/api/leads/bulk-delete", {
+  const addContactMutation = useMutation({
+    mutationFn: async (data: Partial<InsertLead>) => {
+      return await apiRequest("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadIds: contactIds }),
+        body: JSON.stringify(data),
       });
     },
-    onSuccess: (data: any) => {
-      console.log('[Contacts] Bulk delete success:', data);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
-      setIsBulkDeleteDialogOpen(false);
-      setSelectedContactIds(new Set());
+      setIsAddDialogOpen(false);
+      setFormData({
+        senderName: "",
+        senderNumber: "",
+        leadType: "",
+        propertyType: "",
+        purpose: "",
+        price: "",
+        location: "",
+        subLocation: "",
+        agentName: "",
+        source: "",
+        pinnedNotes: "",
+        status: "new",
+      });
       toast({
         title: "Success",
-        description: `${data.deletedCount} contact(s) deleted successfully`,
+        description: "Contact added successfully",
       });
     },
     onError: (error: any) => {
-      console.error('[Contacts] Bulk delete error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to delete contacts",
+        description: error.message || "Failed to add contact",
         variant: "destructive",
       });
     },
   });
 
-  const filteredContacts = contacts.filter(contact => {
-    const query = searchQuery.toLowerCase();
-    const senderName = contact.senderName?.toLowerCase() ?? "";
-    const senderNumber = contact.senderNumber?.toLowerCase() ?? "";
-    const location = contact.location?.toLowerCase() ?? "";
+  const groupedContacts: Record<PipelineStage, Lead[]> = {
+    new: allLeads.filter(lead => lead.status === "new"),
+    contacted: allLeads.filter(lead => lead.status === "contacted"),
+    qualified: allLeads.filter(lead => lead.status === "qualified"),
+    negotiation: allLeads.filter(lead => lead.status === "negotiation"),
+    closed: allLeads.filter(lead => lead.status === "closed"),
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
     
-    return senderName.includes(query) || senderNumber.includes(query) || location.includes(query);
-  });
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredContacts.length / CONTACTS_PER_PAGE);
-  const startIndex = (currentPage - 1) * CONTACTS_PER_PAGE;
-  const endIndex = startIndex + CONTACTS_PER_PAGE;
-  const paginatedContacts = filteredContacts.slice(startIndex, endIndex);
-
-  // Clamp currentPage when filteredContacts changes
-  useEffect(() => {
-    if (totalPages === 0) {
-      setCurrentPage(1);
-    } else if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+    if (!over) {
+      setActiveId(null);
+      return;
     }
-  }, [filteredContacts.length, totalPages, currentPage]);
 
-  // Selection handlers
-  const toggleSelectAll = () => {
-    const allCurrentPageSelected = paginatedContacts.every(contact => selectedContactIds.has(contact.id));
-    if (allCurrentPageSelected) {
-      const newSet = new Set(selectedContactIds);
-      paginatedContacts.forEach(contact => newSet.delete(contact.id));
-      setSelectedContactIds(newSet);
+    const activeContact = allLeads.find(lead => lead.id === active.id);
+    if (!activeContact) {
+      setActiveId(null);
+      return;
+    }
+
+    // Determine the target stage - could be a column ID or a card ID
+    let targetStage: PipelineStage | null = null;
+    const validStages: PipelineStage[] = ["new", "contacted", "qualified", "negotiation", "closed"];
+    
+    // Check if dropped directly on a column
+    if (validStages.includes(over.id as PipelineStage)) {
+      targetStage = over.id as PipelineStage;
     } else {
-      const newSet = new Set(selectedContactIds);
-      paginatedContacts.forEach(contact => newSet.add(contact.id));
-      setSelectedContactIds(newSet);
+      // Dropped on a card - find the card's column by looking up its status
+      const overContact = allLeads.find(lead => lead.id === over.id);
+      if (overContact) {
+        targetStage = overContact.status as PipelineStage;
+      }
     }
-  };
-
-  const toggleSelectContact = (contactId: string) => {
-    const newSet = new Set(selectedContactIds);
-    if (newSet.has(contactId)) {
-      newSet.delete(contactId);
-    } else {
-      newSet.add(contactId);
+    
+    // Update if the stage has changed
+    if (targetStage && activeContact.status !== targetStage) {
+      updateLeadMutation.mutate({ id: activeContact.id, status: targetStage });
     }
-    setSelectedContactIds(newSet);
+
+    setActiveId(null);
   };
 
-  const handleDelete = (contact: Lead) => {
-    setSelectedContact(contact);
-    setIsDeleteDialogOpen(true);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.senderName || !formData.senderNumber) {
+      toast({
+        title: "Error",
+        description: "Name and phone number are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addContactMutation.mutate(formData);
   };
 
-  const handleBulkDelete = () => {
-    if (selectedContactIds.size === 0) return;
-    setIsBulkDeleteDialogOpen(true);
-  };
-
-  const confirmBulkDelete = () => {
-    bulkDeleteMutation.mutate(Array.from(selectedContactIds));
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-  };
+  const activeContact = activeId ? allLeads.find(lead => lead.id === activeId) : null;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold mb-2">Contacts</h1>
-          <p className="text-muted-foreground">Manage your closed leads and contacts</p>
+          <h1 className="text-2xl font-bold mb-2">Pipeline</h1>
+          <p className="text-muted-foreground">Manage your customer pipeline and contacts</p>
         </div>
+        <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-contact">
+          <Plus className="h-4 w-4 mr-2" />
+          Add Contact
+        </Button>
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts by name, number, or location..."
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            data-testid="input-search-contacts"
-          />
-        </div>
-        {selectedContactIds.size > 0 && (
-          <Button
-            variant="destructive"
-            onClick={handleBulkDelete}
-            data-testid="button-bulk-delete-contacts"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Selected ({selectedContactIds.size})
-          </Button>
-        )}
-      </div>
-
-      {isError ? (
-        <div className="text-center py-12">
-          <div className="text-destructive font-semibold mb-2">Error Loading Contacts</div>
-          <div className="text-muted-foreground text-sm">
-            {error instanceof Error ? error.message : 'Failed to fetch contacts'}
-          </div>
-          <Button 
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/leads"] })}
-            className="mt-4"
-          >
-            Retry
-          </Button>
-        </div>
-      ) : isLoading ? (
-        <div className="text-center py-12">
-          <div className="text-muted-foreground">Loading contacts...</div>
-          <div className="text-xs text-muted-foreground mt-2">Fetching leads from server...</div>
-        </div>
+      {isLoading ? (
+        <div className="text-center py-12">Loading contacts...</div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">
-                    <Checkbox
-                      checked={paginatedContacts.length > 0 && paginatedContacts.every(contact => selectedContactIds.has(contact.id))}
-                      onCheckedChange={toggleSelectAll}
-                      data-testid="checkbox-select-all-contacts"
-                    />
-                  </TableHead>
-                  <TableHead className="w-[120px]">Date</TableHead>
-                  <TableHead className="w-[140px]">Sender Name</TableHead>
-                  <TableHead className="w-[130px]">Sender Number</TableHead>
-                  <TableHead className="w-[130px]">Location</TableHead>
-                  <TableHead className="w-[130px]">Property Type</TableHead>
-                  <TableHead className="w-[120px]">Price (AED)</TableHead>
-                  <TableHead className="w-[200px]">Pinned Notes</TableHead>
-                  <TableHead className="w-[80px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContacts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                      {contacts.length === 0 ? (
-                        <div>
-                          <div>No contacts yet. Contacts will appear here when leads are marked as "Closed".</div>
-                          <div className="text-xs mt-2 opacity-60">
-                            Total leads in system: {allLeads.length} | 
-                            Closed leads: {contacts.length} |
-                            Check browser console for details
-                          </div>
-                        </div>
-                      ) : (
-                        "No contacts found matching your search."
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedContacts.map((contact) => (
-                    <TableRow key={contact.id} data-testid={`row-contact-${contact.id}`}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedContactIds.has(contact.id)}
-                          onCheckedChange={() => toggleSelectContact(contact.id)}
-                          data-testid={`checkbox-contact-${contact.id}`}
-                        />
-                      </TableCell>
-                      <TableCell data-testid={`cell-date-${contact.id}`}>
-                        <div className="text-muted-foreground">
-                          {contact.date ? new Date(contact.date).toLocaleDateString() : "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell data-testid={`cell-senderName-${contact.id}`}>
-                        {contact.senderName}
-                      </TableCell>
-                      <TableCell data-testid={`cell-senderNumber-${contact.id}`}>
-                        {contact.senderNumber}
-                      </TableCell>
-                      <TableCell data-testid={`cell-location-${contact.id}`}>
-                        {contact.location || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`cell-propertyType-${contact.id}`}>
-                        {contact.propertyType || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`cell-price-${contact.id}`}>
-                        {contact.price || "-"}
-                      </TableCell>
-                      <TableCell data-testid={`cell-pinnedNotes-${contact.id}`}>
-                        <div className="truncate max-w-[200px]">
-                          {contact.pinnedNotes || "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(contact)}
-                          data-testid={`button-delete-contact-${contact.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            {(Object.keys(groupedContacts) as PipelineStage[]).map((stage) => (
+              <div key={stage} data-testid={`column-${stage}`}>
+                <DroppableColumn stage={stage} contacts={groupedContacts[stage]} />
+              </div>
+            ))}
           </div>
-          
-          {/* Pagination Controls */}
-          {filteredContacts.length > 0 && totalPages > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <div className="text-sm text-muted-foreground">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredContacts.length)} of {filteredContacts.length} contacts
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  data-testid="button-previous-page-contacts"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Previous
-                </Button>
-                <div className="flex items-center gap-1">
-                  {(() => {
-                    const WINDOW_SIZE = 5;
-                    let startPage = Math.max(1, currentPage - Math.floor(WINDOW_SIZE / 2));
-                    let endPage = Math.min(totalPages, startPage + WINDOW_SIZE - 1);
-                    
-                    if (endPage - startPage + 1 < WINDOW_SIZE) {
-                      startPage = Math.max(1, endPage - WINDOW_SIZE + 1);
-                    }
-                    
-                    const pageNumbers = [];
-                    for (let i = startPage; i <= endPage; i++) {
-                      pageNumbers.push(i);
-                    }
-                    
-                    return pageNumbers.map((page) => (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(page)}
-                        data-testid={`button-page-${page}-contacts`}
-                        className="min-w-[36px]"
-                      >
-                        {page}
-                      </Button>
-                    ));
-                  })()}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  data-testid="button-next-page-contacts"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+
+          <DragOverlay>
+            {activeContact ? <ContactCard contact={activeContact} /> : null}
+          </DragOverlay>
+        </DndContext>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Contact</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedContact?.senderName}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => selectedContact && deleteContactMutation.mutate(selectedContact.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Add Contact Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add New Contact</DialogTitle>
+            <DialogDescription>
+              Add a new contact to your pipeline
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="senderName">Name *</Label>
+                  <Input
+                    id="senderName"
+                    value={formData.senderName || ""}
+                    onChange={(e) => setFormData({ ...formData, senderName: e.target.value })}
+                    data-testid="input-contact-name"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senderNumber">Phone *</Label>
+                  <Input
+                    id="senderNumber"
+                    value={formData.senderNumber || ""}
+                    onChange={(e) => setFormData({ ...formData, senderNumber: e.target.value })}
+                    data-testid="input-contact-phone"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="propertyType">Property Type</Label>
+                <Input
+                  id="propertyType"
+                  value={formData.propertyType || ""}
+                  onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}
+                  placeholder="e.g., Villa, Apartment"
+                  data-testid="input-contact-property"
+                />
+              </div>
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Multiple Contacts</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedContactIds.size} contact(s)? This action cannot be undone and will also delete all related deals, tasks, and documents.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmBulkDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-bulk-delete-contacts"
-            >
-              Delete {selectedContactIds.size} Contact(s)
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="price">Budget (AED)</Label>
+                  <Input
+                    id="price"
+                    value={formData.price || ""}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="e.g., 2,500,000"
+                    data-testid="input-contact-budget"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location</Label>
+                  <Input
+                    id="location"
+                    value={formData.location || ""}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="e.g., Dubai Marina"
+                    data-testid="input-contact-location"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="agentName">Assigned Agent</Label>
+                <Input
+                  id="agentName"
+                  value={formData.agentName || ""}
+                  onChange={(e) => setFormData({ ...formData, agentName: e.target.value })}
+                  data-testid="input-contact-agent"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Stage</Label>
+                <Select
+                  value={formData.status || "new"}
+                  onValueChange={(value) => setFormData({ ...formData, status: value })}
+                >
+                  <SelectTrigger data-testid="select-contact-stage">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="contacted">Contacted</SelectItem>
+                    <SelectItem value="qualified">Qualified</SelectItem>
+                    <SelectItem value="negotiation">Negotiation</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pinnedNotes">Notes</Label>
+                <Textarea
+                  id="pinnedNotes"
+                  value={formData.pinnedNotes || ""}
+                  onChange={(e) => setFormData({ ...formData, pinnedNotes: e.target.value })}
+                  placeholder="Add any notes..."
+                  rows={3}
+                  data-testid="input-contact-notes"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" data-testid="button-submit-contact">
+                Add Contact
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
