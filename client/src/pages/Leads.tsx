@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Upload, Download, Edit, Trash2, Check, X } from "lucide-react";
+import { Plus, Search, Upload, Download, Edit, Trash2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Lead, InsertLead } from "@shared/schema";
 import {
@@ -40,6 +40,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import * as XLSX from "xlsx";
@@ -48,10 +49,14 @@ export default function Leads() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const LEADS_PER_PAGE = 15;
   const [formData, setFormData] = useState<Partial<InsertLead>>({
     senderName: "",
     senderNumber: "",
@@ -165,6 +170,32 @@ export default function Leads() {
       toast({
         title: "Error",
         description: error.message || "Failed to delete lead",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (leadIds: string[]) => {
+      return await apiRequest("/api/leads/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds }),
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      setIsBulkDeleteDialogOpen(false);
+      setSelectedLeadIds(new Set());
+      toast({
+        title: "Success",
+        description: `${data.deletedCount} lead(s) deleted successfully`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete leads",
         variant: "destructive",
       });
     },
@@ -352,6 +383,64 @@ export default function Leads() {
     return senderName.includes(query) || senderNumber.includes(query) || location.includes(query) || agentName.includes(query);
   });
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredLeads.length / LEADS_PER_PAGE);
+  const startIndex = (currentPage - 1) * LEADS_PER_PAGE;
+  const endIndex = startIndex + LEADS_PER_PAGE;
+  const paginatedLeads = filteredLeads.slice(startIndex, endIndex);
+
+  // Clamp currentPage when filteredLeads changes (after deletion or search)
+  useEffect(() => {
+    if (totalPages === 0) {
+      // Reset to page 1 when there are no leads (all deleted or filtered out)
+      setCurrentPage(1);
+    } else if (currentPage > totalPages) {
+      // Clamp to last valid page when dataset shrinks
+      setCurrentPage(totalPages);
+    }
+  }, [filteredLeads.length, totalPages, currentPage]);
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    const allCurrentPageSelected = paginatedLeads.every(lead => selectedLeadIds.has(lead.id));
+    if (allCurrentPageSelected) {
+      // Deselect all leads on current page
+      const newSet = new Set(selectedLeadIds);
+      paginatedLeads.forEach(lead => newSet.delete(lead.id));
+      setSelectedLeadIds(newSet);
+    } else {
+      // Select all leads on current page
+      const newSet = new Set(selectedLeadIds);
+      paginatedLeads.forEach(lead => newSet.add(lead.id));
+      setSelectedLeadIds(newSet);
+    }
+  };
+
+  const toggleSelectLead = (leadId: string) => {
+    const newSet = new Set(selectedLeadIds);
+    if (newSet.has(leadId)) {
+      newSet.delete(leadId);
+    } else {
+      newSet.add(leadId);
+    }
+    setSelectedLeadIds(newSet);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedLeadIds.size === 0) return;
+    setIsBulkDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = () => {
+    bulkDeleteMutation.mutate(Array.from(selectedLeadIds));
+  };
+
+  // Reset selection when page changes
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    setSelectedLeadIds(new Set());
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -402,6 +491,16 @@ export default function Leads() {
             data-testid="input-search-leads"
           />
         </div>
+        {selectedLeadIds.size > 0 && (
+          <Button
+            variant="destructive"
+            onClick={handleBulkDelete}
+            data-testid="button-bulk-delete"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedLeadIds.size})
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -412,6 +511,13 @@ export default function Leads() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead.id))}
+                      onCheckedChange={toggleSelectAll}
+                      data-testid="checkbox-select-all"
+                    />
+                  </TableHead>
                   <TableHead className="w-[120px]">Date</TableHead>
                   <TableHead className="w-[120px]">Lead Type</TableHead>
                   <TableHead className="w-[140px]">Sender Name</TableHead>
@@ -429,15 +535,24 @@ export default function Leads() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLeads.length === 0 ? (
+                {paginatedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={15} className="text-center py-12 text-muted-foreground">
                       No leads found. Add your first lead or import from Excel.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLeads.map((lead) => (
+                  paginatedLeads.map((lead) => (
                     <TableRow key={lead.id} data-testid={`row-lead-${lead.id}`}>
+                      {/* Checkbox */}
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedLeadIds.has(lead.id)}
+                          onCheckedChange={() => toggleSelectLead(lead.id)}
+                          data-testid={`checkbox-lead-${lead.id}`}
+                        />
+                      </TableCell>
+                      
                       {/* Date (read-only) */}
                       <TableCell>
                         <div className="p-1 min-h-[32px] flex items-center text-muted-foreground" data-testid={`cell-date-${lead.id}`}>
@@ -767,6 +882,51 @@ export default function Leads() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Pagination Controls */}
+          {filteredLeads.length > 0 && totalPages > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredLeads.length)} of {filteredLeads.length} leads
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  data-testid="button-previous-page"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page)}
+                      data-testid={`button-page-${page}`}
+                      className="min-w-[36px]"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -963,6 +1123,28 @@ export default function Leads() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Multiple Leads</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedLeadIds.size} lead(s)? This action cannot be undone and will also delete all related deals, tasks, and documents.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-bulk-delete"
+            >
+              Delete {selectedLeadIds.size} Lead(s)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

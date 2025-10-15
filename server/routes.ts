@@ -212,6 +212,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/leads/bulk-delete", authenticateToken, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "Invalid lead IDs" });
+      }
+
+      for (const leadId of leadIds) {
+        // Delete related data for each lead
+        const deals = await storage.getAllDeals();
+        const relatedDeals = deals.filter(deal => deal.leadId === leadId);
+        for (const deal of relatedDeals) {
+          await db.delete(dealsTable).where(eq(dealsTable.id, deal.id));
+        }
+        
+        const tasks = await storage.getAllTasks();
+        const relatedTasks = tasks.filter(task => task.relatedLeadId === leadId);
+        for (const task of relatedTasks) {
+          await storage.deleteTask(task.id);
+        }
+        
+        const documents = await storage.getDocumentsByLead(leadId);
+        for (const doc of documents) {
+          await storage.deleteDocument(doc.id);
+        }
+        
+        await storage.deleteLead(leadId);
+      }
+      
+      res.json({ success: true, deletedCount: leadIds.length });
+    } catch (error) {
+      console.error("Bulk deletion error:", error);
+      res.status(400).json({ error: "Failed to delete leads" });
+    }
+  });
+
   // Property routes
   app.get("/api/properties", authenticateToken, async (req, res) => {
     try {
