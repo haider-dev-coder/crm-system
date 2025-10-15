@@ -435,10 +435,9 @@ export default function Leads() {
     bulkDeleteMutation.mutate(Array.from(selectedLeadIds));
   };
 
-  // Reset selection when page changes
+  // Change page without resetting selections (selections persist across pages)
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    setSelectedLeadIds(new Set());
   };
 
   return (
