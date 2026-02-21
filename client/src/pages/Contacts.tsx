@@ -1,9 +1,9 @@
-import { useState } from "react";
+import type { Lead, InsertLead, PipelineStage } from "@shared/schema";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Phone, MapPin, DollarSign } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { Lead, InsertLead } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -46,23 +46,32 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-type PipelineStage = "new" | "contacted" | "qualified" | "negotiation" | "closed";
 
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  new: "New",
-  contacted: "Contacted",
-  qualified: "Qualified",
-  negotiation: "Negotiation",
-  closed: "Closed",
-};
 
-const STAGE_COLORS: Record<PipelineStage, string> = {
-  new: "bg-blue-50 dark:bg-blue-950",
-  contacted: "bg-yellow-50 dark:bg-yellow-950",
-  qualified: "bg-green-50 dark:bg-green-950",
-  negotiation: "bg-orange-50 dark:bg-orange-950",
-  closed: "bg-purple-50 dark:bg-purple-950",
-};
+  // Update your labels to display nicely
+  const STAGE_LABELS: Record<PipelineStage, string> = {
+    Lead: "Lead",
+    "No Answer": "No Answer",
+    Prospect: "Prospect",
+    "Other Options": "Other Options",
+    Visiting: "Visiting",
+    Followup: "Followup",
+    Negotiation: "Negotiation",
+    Won: "Won",
+    Lost: "Lost",
+  };
+
+  const STAGE_COLORS: Record<PipelineStage, string> = {
+    Lead: "bg-blue-50 dark:bg-blue-950",
+    "No Answer": "bg-gray-50 dark:bg-gray-900",
+    Prospect: "bg-teal-50 dark:bg-teal-950",
+    "Other Options": "bg-purple-50 dark:bg-purple-950",
+    Visiting: "bg-indigo-50 dark:bg-indigo-950",
+    Followup: "bg-pink-50 dark:bg-pink-950",
+    Negotiation: "bg-orange-50 dark:bg-orange-950",
+    Won: "bg-green-50 dark:bg-green-950",
+    Lost: "bg-red-50 dark:bg-red-950",
+  };
 
 function ContactCard({ contact }: { contact: Lead }) {
   const {
@@ -143,31 +152,30 @@ function DroppableColumn({ stage, contacts }: { stage: PipelineStage; contacts: 
         </div>
       </div>
       
-      <div 
-        ref={setNodeRef}
-        className={`flex-1 border-x border-b rounded-b-lg transition-colors ${
-          isOver ? "bg-accent/50" : ""
-        }`}
-      >
-        <ScrollArea className="h-full">
-          <div className="p-3 min-h-[400px]">
-            <SortableContext
-              items={contacts.map(c => c.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {contacts.length === 0 ? (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  No contacts yet
-                </div>
-              ) : (
-                contacts.map((contact) => (
-                  <ContactCard key={contact.id} contact={contact} />
-                ))
-              )}
-            </SortableContext>
-          </div>
-        </ScrollArea>
-      </div>
+      {/* CRITICAL: The ref must be on the scrollable content area, not the outer border */}
+      <ScrollArea className="flex-1 border-x border-b rounded-b-lg">
+        <div 
+          ref={setNodeRef}
+          className={`p-3 min-h-[400px] transition-colors ${
+            isOver ? "bg-accent/50" : ""
+          }`}
+        >
+          <SortableContext
+            items={contacts.map(c => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {contacts.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No contacts yet
+              </div>
+            ) : (
+              contacts.map((contact) => (
+                <ContactCard key={contact.id} contact={contact} />
+              ))
+            )}
+          </SortableContext>
+        </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -203,6 +211,25 @@ export default function Contacts() {
   const { data: allLeads = [], isLoading } = useQuery<Lead[]>({ 
     queryKey: ["/api/leads"] 
   });
+  const { data: currentUser } = useQuery<any>({
+    queryKey: ["/api/auth/me"]
+  });
+  useEffect(() => {
+    if (allLeads.length > 0) {
+      const uniqueStatuses = Array.from(new Set(allLeads.map(lead => lead.status)));
+      console.log("🔍 Database status values:", uniqueStatuses);
+      
+      // Show which leads have which status
+      uniqueStatuses.forEach(status => {
+        const count = allLeads.filter(l => l.status === status).length;
+        console.log(`   "${status}": ${count} leads`);
+      });
+    }
+  }, [allLeads]);
+
+
+
+
 
   const updateLeadMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -267,13 +294,28 @@ export default function Contacts() {
     },
   });
 
-  const groupedContacts: Record<PipelineStage, Lead[]> = {
-    new: allLeads.filter(lead => lead.status === "new"),
-    contacted: allLeads.filter(lead => lead.status === "contacted"),
-    qualified: allLeads.filter(lead => lead.status === "qualified"),
-    negotiation: allLeads.filter(lead => lead.status === "negotiation"),
-    closed: allLeads.filter(lead => lead.status === "closed"),
-  };
+// Filter leads based on user role
+const userFilteredLeads = currentUser?.role === "admin" || currentUser?.role === "ADMIN"
+  ? allLeads // Admins see all leads
+  : allLeads.filter(lead => {
+      const currentUserFullName = `${currentUser?.firstName} ${currentUser?.lastName}`.trim();
+      return lead.agentName === currentUserFullName;
+    });
+
+// Update groupedContacts to use filtered leads
+const groupedContacts: Record<PipelineStage, Lead[]> = {
+  Lead: userFilteredLeads.filter(l => l.status === "Lead"),
+  "No Answer": userFilteredLeads.filter(l => l.status === "No Answer"),
+  Prospect: userFilteredLeads.filter(l => l.status === "Prospect"),
+  "Other Options": userFilteredLeads.filter(l => l.status === "Other Options"),
+  Visiting: userFilteredLeads.filter(l => l.status === "Visiting"),
+  Followup: userFilteredLeads.filter(l => l.status === "Followup"),
+  Negotiation: userFilteredLeads.filter(l => l.status === "Negotiation"),
+  Won: userFilteredLeads.filter(l => l.status === "Won"),
+  Lost: userFilteredLeads.filter(l => l.status === "Lost"),
+};
+
+  
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -282,37 +324,71 @@ export default function Contacts() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
+    console.log("🎯 DRAG END - Active ID:", active.id);
+    console.log("🎯 DRAG END - Over ID:", over?.id);
+    
     if (!over) {
+      console.log("❌ No drop target");
       setActiveId(null);
       return;
     }
-
+  
     const activeContact = allLeads.find(lead => lead.id === active.id);
+    console.log("🎯 Active Contact:", activeContact?.senderName, "Status:", activeContact?.status);
+    
     if (!activeContact) {
+      console.log("❌ Active contact not found");
       setActiveId(null);
       return;
     }
-
+  
     // Determine the target stage - could be a column ID or a card ID
     let targetStage: PipelineStage | null = null;
-    const validStages: PipelineStage[] = ["new", "contacted", "qualified", "negotiation", "closed"];
+    
+    // Define valid stages as an array of strings (not typed as PipelineStage[])
+    const validStages = [
+      "Lead",
+      "No Answer",
+      "Prospect",
+      "Other Options",
+      "Visiting",
+      "Followup",
+      "Negotiation",
+      "Won",
+      "Lost",
+    ];
+    
+    // Convert over.id to string for comparison
+    const overId = String(over.id);
+    console.log("🎯 Over ID (converted):", overId);
+    console.log("🎯 Is valid stage?", validStages.includes(overId));
     
     // Check if dropped directly on a column
-    if (validStages.includes(over.id as PipelineStage)) {
-      targetStage = over.id as PipelineStage;
+    if (validStages.includes(overId)) {
+      targetStage = overId as PipelineStage;
+      console.log("✅ Dropped on column:", targetStage);
     } else {
       // Dropped on a card - find the card's column by looking up its status
       const overContact = allLeads.find(lead => lead.id === over.id);
+      console.log("🎯 Over Contact:", overContact?.senderName, "Status:", overContact?.status);
       if (overContact) {
         targetStage = overContact.status as PipelineStage;
+        console.log("✅ Dropped on card, target stage:", targetStage);
       }
     }
     
+    console.log("🎯 Final target stage:", targetStage);
+    console.log("🎯 Current status:", activeContact.status);
+    console.log("🎯 Will update?", targetStage && activeContact.status !== targetStage);
+    
     // Update if the stage has changed
     if (targetStage && activeContact.status !== targetStage) {
+      console.log("🚀 UPDATING LEAD - ID:", activeContact.id, "New Status:", targetStage);
       updateLeadMutation.mutate({ id: activeContact.id, status: targetStage });
+    } else {
+      console.log("⏭️ No update needed");
     }
-
+  
     setActiveId(null);
   };
 
@@ -355,13 +431,15 @@ export default function Contacts() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {(Object.keys(groupedContacts) as PipelineStage[]).map((stage) => (
-              <div key={stage} data-testid={`column-${stage}`}>
-                <DroppableColumn stage={stage} contacts={groupedContacts[stage]} />
-              </div>
-            ))}
-          </div>
+         <div className="flex space-x-4 overflow-x-auto py-2">
+  {(Object.keys(groupedContacts) as PipelineStage[]).map((stage) => (
+    <div key={stage} className="flex-shrink-0 w-[300px]">
+      <DroppableColumn stage={stage} contacts={groupedContacts[stage]} />
+    </div>
+  ))}
+</div>
+
+
 
           <DragOverlay>
             {activeContact ? <ContactCard contact={activeContact} /> : null}
@@ -371,14 +449,14 @@ export default function Contacts() {
 
       {/* Add Contact Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle>Add New Contact</DialogTitle>
             <DialogDescription>
               Add a new contact to your pipeline
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto pr-2">
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -402,6 +480,134 @@ export default function Contacts() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+  <Label htmlFor="customerType">Customer Type</Label>
+  <Select
+    value={formData.customerType || ""}
+    onValueChange={(value) => setFormData({ ...formData, customerType: value })}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select type" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="owner">Owner</SelectItem>
+      <SelectItem value="buyer">Buyer</SelectItem>
+      <SelectItem value="tenant">Tenant</SelectItem>
+      <SelectItem value="investor">Investor</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
+              {/* ----Changes--- */}
+              <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+           id="email"
+           value={formData.email || ""}
+           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+      placeholder="Enter email"
+    />
+  </div>
+  <div className="space-y-2">
+    <Label htmlFor="phone2">Phone Number 2</Label>
+    <Input
+      id="phone2"
+      value={formData.phone2 || ""}
+      onChange={(e) => {
+        const val = e.target.value;
+        setFormData({
+          ...formData,
+          phone2: val,
+          whatsapp: val, // Auto-fill WhatsApp from Phone 2
+        });
+      }}
+      placeholder="Enter alternate number"
+    />
+  </div>
+</div>
+
+<div className="space-y-2">
+  <Label htmlFor="whatsapp">WhatsApp</Label>
+  <Input
+    id="whatsapp"
+    value={formData.whatsapp || ""}
+    onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+    placeholder="WhatsApp number"
+  />
+</div>
+
+<div className="grid grid-cols-2 gap-4">
+  <div className="space-y-2">
+    <Label htmlFor="idCardNumber">ID Card Number</Label>
+    <Input
+      id="idCardNumber"
+      value={formData.idCardNumber || ""}
+      onChange={(e) => setFormData({ ...formData, idCardNumber: e.target.value })}
+      placeholder="Enter ID card number"
+    />
+  </div>
+  <div className="space-y-2">
+    <Label htmlFor="passportNumber">Passport Number</Label>
+    <Input
+      id="passportNumber"
+      value={formData.passportNumber || ""}
+      onChange={(e) => setFormData({ ...formData, passportNumber: e.target.value })}
+      placeholder="Enter passport number"
+    />
+  </div>
+</div>
+
+<div className="grid grid-cols-2 gap-4">
+  <div className="space-y-2">
+    <Label htmlFor="emiratesId">Emirates ID</Label>
+    <Input
+      id="emiratesId"
+      value={formData.emiratesId || ""}
+      onChange={(e) => setFormData({ ...formData, emiratesId: e.target.value })}
+      placeholder="Enter Emirates ID"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label htmlFor="visaStatus">Visa Status</Label>
+    <Select
+      value={formData.visaStatus || ""}
+      onValueChange={(value) => setFormData({ ...formData, visaStatus: value })}
+    >
+      <SelectTrigger>
+        <SelectValue placeholder="Select visa status" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="resident">Resident</SelectItem>
+        <SelectItem value="visit">Visit Visa</SelectItem>
+        <SelectItem value="work">Work Visa</SelectItem>
+        <SelectItem value="other">Other</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+<div className="space-y-2">
+  <Label htmlFor="preferredLanguage">Preferred Language</Label>
+  <Select
+    value={formData.preferredLanguage || ""}
+    onValueChange={(value) => setFormData({ ...formData, preferredLanguage: value })}
+  >
+    <SelectTrigger>
+      <SelectValue placeholder="Select language" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="english">English</SelectItem>
+      <SelectItem value="arabic">Arabic</SelectItem>
+      <SelectItem value="urdu">Urdu</SelectItem>
+      <SelectItem value="hindi">Hindi</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+          
+              {/* ----Changes--- */}
+
               
               <div className="space-y-2">
                 <Label htmlFor="propertyType">Property Type</Label>
@@ -448,23 +654,27 @@ export default function Contacts() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Stage</Label>
-                <Select
-                  value={formData.status || "new"}
-                  onValueChange={(value) => setFormData({ ...formData, status: value })}
-                >
-                  <SelectTrigger data-testid="select-contact-stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="qualified">Qualified</SelectItem>
-                    <SelectItem value="negotiation">Negotiation</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+  <Label htmlFor="status">Stage</Label>
+  <Select
+    value={formData.status || "Lead"}
+    onValueChange={(value) => setFormData({ ...formData, status: value })}
+  >
+    <SelectTrigger data-testid="select-contact-stage">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="Lead">Lead</SelectItem>
+      <SelectItem value="No Answer">No Answer</SelectItem>
+      <SelectItem value="Prospect">Prospect</SelectItem>
+      <SelectItem value="Other Options">Other Options</SelectItem>
+      <SelectItem value="Visiting">Visiting</SelectItem>
+      <SelectItem value="Followup">Followup</SelectItem>
+      <SelectItem value="Negotiation">Negotiation</SelectItem>
+      <SelectItem value="Won">Won</SelectItem>
+      <SelectItem value="Lost">Lost</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
 
               <div className="space-y-2">
                 <Label htmlFor="pinnedNotes">Notes</Label>

@@ -1,28 +1,36 @@
-import { getAuthToken } from "./auth";
+// client/src/api.ts
+import axios from "axios";
 
-export async function apiClient(url: string, options: RequestInit = {}) {
-  const token = getAuthToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+// ✅ 1. Create an axios instance with your backend URL
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000/api", // change port if different
+  withCredentials: false, // usually false unless using cookies
+});
 
-  if (options.headers) {
-    Object.assign(headers, options.headers);
+// ✅ 2. Add a request interceptor to attach JWT token automatically
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ✅ 3. Optional: Response interceptor to handle expired tokens globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn("Unauthorized — token may be invalid or expired");
+      localStorage.removeItem("token");
+      // optional redirect to login
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
   }
+);
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok && response.status === 401) {
-    localStorage.removeItem("token");
-    window.location.href = "/login";
-  }
-
-  return response;
-}
+export default api;

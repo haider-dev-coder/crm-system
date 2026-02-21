@@ -1,3 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config(); // ✅ ensures DATABASE_URL is loaded even if bootstrap didn’t run yet
+
+console.log("DEBUG DATABASE_URL =", process.env.DATABASE_URL);
+
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";

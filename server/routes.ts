@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Request, type Response, type Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -20,6 +20,21 @@ import {
   insertDocumentSchema,
   insertActivitySchema,
 } from "@shared/schema";
+
+// ✅ Extend Express Request to include "user"
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email?: string;
+        role?: string;
+        [key: string]: any;
+      };
+    }
+  }
+}
+
 
 const JWT_SECRET = process.env.SESSION_SECRET || "your-secret-key";
 
@@ -626,10 +641,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const user = await storage.updateUser(req.params.id, updateData);
       res.json({ ...user, password: undefined });
+
     } catch (error) {
       res.status(400).json({ error: "Failed to update user" });
     }
   });
+     // Create new user (agent)
+app.post("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const { name, firstName, lastName, email, password, role } = req.body;
+
+    // Split full name if provided
+    let fn = firstName;
+    let ln = lastName;
+    if (!fn && name) {
+      const parts = name.trim().split(/\s+/);
+      fn = parts[0];
+      ln = parts.slice(1).join(" ");
+    }
+
+    if (!fn) return res.status(400).json({ error: "First name is required" });
+    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await storage.createUser({
+      firstName: fn,
+      lastName: ln || "",
+      email,
+      password: hashedPassword,
+      role: role || "agent",
+    });
+
+    res.json({ ...user, password: undefined });
+  } catch (error) {
+    console.error("Create user error:", error);
+    res.status(400).json({ error: "Failed to create user" });
+  }
+});
+// ✅ Delete user
+app.delete("/api/users/:id", authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Prevent user from deleting their own account
+    if (req.user && req.user.id === id) {
+      return res.status(400).json({ error: "You cannot delete your own account" });
+    }
+
+    await storage.deleteUser(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete user error:", error);
+    res.status(400).json({ error: "Failed to delete user" });
+  }
+});
+
+
 
   const httpServer = createServer(app);
   return httpServer;
